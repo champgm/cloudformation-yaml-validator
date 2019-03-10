@@ -12,7 +12,8 @@
       "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "/Volumes/github/project-quest/services/connectors"
+        "C:\\Users\\mismatch\\github\\project-quest\\services\\connectors"
+        // "/Volumes/github/project-quest/services/connectors"
       ],
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
