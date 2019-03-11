@@ -3,9 +3,9 @@ import * as vscode from 'vscode';
 
 // import { safeLoad } from 'js-yaml';
 import YAML from 'yaml';
-import schema from 'cloudformation-schema-js-yaml';
+// import schema from 'cloudformation-schema-js-yaml';
 import get from 'lodash.get';
-import { revealAllProperties } from './util';
+import { revealAllProperties, flattenArray } from './util';
 // import JSON from 'flatted';
 
 export class CloudformationYaml implements vscode.CodeActionProvider {
@@ -47,7 +47,6 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     // const yamlObject = safeLoad(text, { schema });
     const document = YAML.parseDocument(text, { keepCstNodes: true });
 
-    // const yamlObject: YAML.ast.BlockFolded | YAML.ast.BlockLiteral | YAML.ast.PlainValue | YAML.ast.QuoteDouble | YAML.ast.QuoteSingle | YAML.ast.FlowMap | YAML.ast.Map | YAML.ast.FlowSeq | YAML.ast.Seq | YAML.ast.Alias = document.contents;
     const yamlObject = (document as any).contents;
     console.log(`yamlObject: ${JSON.stringify(yamlObject)}`);
     console.log(`GOT YAML:`);
@@ -61,11 +60,13 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
 
     // const referenceableKeys = Object.keys(yamlObject.Resources).concat(Object.keys(yamlObject.Parameters));
     const referenceableKeys = this.getReferenceables(document);
-    console.log(`GOT REFERENCEABLE KEYS${JSON.stringify(referenceableKeys, null, 2)}`);
+    console.log(`GOT REFERENCEABLE KEYS ${JSON.stringify(referenceableKeys, null, 2)}`);
+
+    const referencingNodes = this.getNodesWhichReference(document);
+    console.log(`GOT REFERENCING NODES: ${JSON.stringify(referencingNodes, null, 2)}`);
 
     const refKeys = [];//this.findKeys('Ref', yamlObject);
     console.log(`GOT REF KEYS: ${JSON.stringify(refKeys, null, 2)}`);
-
 
     const refErrors = refKeys.filter((key) => {
       const value = get(yamlObject, key);
@@ -106,17 +107,22 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
   public getNodesWhichReference(document: any) {
     const resources = document.get('Resources');
     const outputs = document.get('Outputs');
+    return this.getReferenceNodes(resources).concat(this.getReferenceNodes(outputs));
   }
 
   public getReferenceNodes(yamlNode: any): any[] {
-    const keys = this.getKeys(yamlNode);
+    if (yamlNode) {
+      const keys = this.getKeys(yamlNode);
+      if (keys.length > 0) {
+        const referenceSubNodes = keys.map((key) => {
+          return this.getReferenceNodes(yamlNode.get(key, true));
+        });
+        return flattenArray(referenceSubNodes);
+      }
 
-    if (keys.length === 0) {
-      return;
-    }
-
-    if (yamlNode.tag === '!Ref' || yamlNode.tag === '!Sub') {
-      return [yamlNode];
+      if (yamlNode.tag === '!Ref' || yamlNode.tag === '!Sub') {
+        return [yamlNode];
+      }
     }
     return [];
   }
