@@ -8,6 +8,8 @@ import get from 'lodash.get';
 
 import { revealAllProperties } from './util';
 
+let diagnosticCollection: vscode.DiagnosticCollection;
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -29,9 +31,10 @@ export function activate(context: vscode.ExtensionContext) {
 
       const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
       console.log(`GOT TEXT:`);
-      console.log(`${JSON.stringify(editor.document.getText(), null, 2)}`);
+      const text = editor.document.getText();
+      console.log(`${JSON.stringify(text, null, 2)}`);
 
-      const yamlObject = safeLoad(editor.document.getText(), { schema });
+      const yamlObject = safeLoad(text, { schema });
       console.log(`GOT YAML:`);
       console.log(`${JSON.stringify(yamlObject, null, 2)}`);
 
@@ -57,6 +60,35 @@ export function activate(context: vscode.ExtensionContext) {
       });
       console.log(`GOT REF ERRORS: ${JSON.stringify(refErrors, null, 2)}`);
 
+
+      // Examples from spellcheck extensiont
+      // let lineRange = new vscode.Range( linenumber, colnumber, linenumber, colnumber + token.length );
+      // let diag = new vscode.Diagnostic( lineRange, this.problemCollection[ token ], vscode.DiagnosticSeverity.Error );
+      const errorPhrases = getErrorPhrases(refErrors);
+      console.log(`splitting by lines...`);
+      const textSplitByLines = splitByLines(text);
+      const diagnostics: vscode.Diagnostic[] = [];
+      console.log(`Gathering diagnostics...`);
+      errorPhrases.forEach((phrase) => {
+        for (let index = 0; index < textSplitByLines.length; index += 1) {
+          const line = textSplitByLines[index];
+          if (line.indexOf(phrase) > -1) {
+            console.log(`Searching line for phrase ${phrase}`);
+            const range = new vscode.Range(index, line.indexOf(phrase), index, line.indexOf(phrase) + phrase.length);
+            diagnostics.push(
+              new vscode.Diagnostic(
+                range,
+                `Unable to find reference variable`,
+                vscode.DiagnosticSeverity.Error,
+              ));
+          }
+        }
+      });
+      console.log(`GOt ${diagnostics.length} diagnostics`);
+      diagnosticCollection = vscode.languages.createDiagnosticCollection('Cloudformation Yaml Checker');
+      console.log(`setting diagnostics...`);
+      diagnosticCollection.set(editor.document.uri, diagnostics);
+
     } catch (error) {
       console.log(`GOT ERROR:`);
       console.log(`${JSON.stringify(revealAllProperties(error), null, 2)}`);
@@ -65,6 +97,22 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(disposable);
+}
+
+export function splitByLines(text: string): string[] {
+  return text.split(/\r?\n/);
+}
+
+export function getErrorPhrases(fullKeyPaths: string[]): string[] {
+  const errorPhrases: string[] = [];
+  fullKeyPaths.forEach((keyPath) => {
+    console.log(`Splitting keypath: ${keyPath}`);
+    const pathPieces = keyPath.split('.');
+    const errorPhrase = `!${pathPieces[pathPieces.length - 1]} ${pathPieces[pathPieces.length - 2]}`
+    console.log(`errorPhrase: ${errorPhrase}`);
+    errorPhrases.push(errorPhrase);
+  });
+  return errorPhrases;
 }
 
 export function findKeys(keyName: string, object: any, keyPrefix?: string): string[] {
@@ -86,4 +134,7 @@ export function findKeys(keyName: string, object: any, keyPrefix?: string): stri
 }
 
 // this method is called when your extension is deactivated
-export function deactivate() { }
+export function deactivate() {
+  diagnosticCollection.clear();
+  diagnosticCollection.dispose();
+}
