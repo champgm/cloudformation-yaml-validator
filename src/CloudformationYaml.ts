@@ -48,10 +48,10 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
   }
 
   go() {
+    console.log(`GO FUNCTION TRIGGERED`);
     const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
     const text = editor.document.getText();
     const document = YAML.parseDocument(text, { keepCstNodes: true });
-    const yamlObject = (document as any).contents;
     const rootFilePath = editor.document.fileName;
     const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}/`;
     const referenceableKeys = this.getReferenceables(document);
@@ -61,21 +61,6 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     this.diagnosticCollection.clear();
     this.diagnosticCollection.set(editor.document.uri, invalidReferenceDiagnostics);
     console.log(`done`);
-
-    // const range = new vscode.Range(index, line.lastIndexOf(phrase), index, line.lastIndexOf(phrase) + phrase.length);
-    // diagnostics.push(
-    //   new vscode.Diagnostic(
-    //     range,
-    //     `Unable to find reference variable`,
-    //     vscode.DiagnosticSeverity.Error,
-    //   ));
-    // console.log(`GOt ${diagnostics.length} diagnostics`);
-    // this.diagnosticCollection = vscode.languages.createDiagnosticCollection('Cloudformation Yaml Checker');
-    // console.log(`setting diagnostics...`);
-  }
-
-  public splitByLines(text: string): string[] {
-    return text.split(/\r?\n/);
   }
 
   public buildInvalidReferenceDiagnostics(
@@ -90,6 +75,7 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
           const position = this.getRowColumnPosition(fullText, node.range[0]);
           const range = new vscode.Range(
             position.line,
+            // The column starts at the beginning of the value (including any tags)
             position.column + reference.keyPositionInValue,
             position.line,
             position.column + reference.keyPositionInValue + reference.referencedKey.length,
@@ -111,12 +97,14 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     // So we have to count the lines.
     const textBefore = text.substring(0, absolutePosition);
 
-    let match;
-    let matches: RegExpExecArray[] = [];
+    // This will gather all individual matches (containing metadata about position, etc)
+    const matches: RegExpExecArray[] = [];
     const regEx = new RegExp('\r?\n', 'g');
+    let match;
     while ((match = (regEx.exec(textBefore) as RegExpExecArray)) != null) {
       matches.push(match);
     }
+
     // Matches will contain each match on line return
     // the number of matches is the number of lines in the file
     const line = matches.length;
@@ -130,23 +118,24 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     return { column, line };
   }
 
-
   public getNodesWhichReference(document: any) {
     const resources = document.get('Resources');
     const outputs = document.get('Outputs');
-    return this.getReferenceNodes(resources).concat(this.getReferenceNodes(outputs));
+    return this.getSubNodesWhichReference(resources).concat(this.getSubNodesWhichReference(outputs));
   }
 
-  public getReferenceNodes(yamlNode: Node): Node[] {
+  public getSubNodesWhichReference(yamlNode: Node): Node[] {
     if (yamlNode) {
-      const keys = this.getKeys(yamlNode);
+      const keys = this.getYamlNodeKeys(yamlNode);
       if (keys.length > 0) {
+        // This means the node is a map, not a node with a value which could contain a reference
         const referenceSubNodes = keys.map((key) => {
-          return this.getReferenceNodes(yamlNode.get(key, true));
+          return this.getSubNodesWhichReference(yamlNode.get(key, true));
         });
         return flattenArray(referenceSubNodes);
       }
 
+      // Handle nodes with a !Ref tag
       if (yamlNode.tag === '!Ref') {
         yamlNode.references = [{
           referencedKey: yamlNode.value,
@@ -155,19 +144,21 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
         }];
         return [yamlNode];
       }
-      if (yamlNode.tag === '!Sub') {
-        // Need to find ALL references in the !Sub
 
+      // Handle nodes with a !Sub tag
+      if (yamlNode.tag === '!Sub') {
+        // This will find ALL ${references} in the !Sub
         let match: RegExpExecArray;
         yamlNode.references = [];
         const regEx = new RegExp('\\${[^}]*}', 'g');
         while ((match = (regEx.exec(yamlNode.value as string) as RegExpExecArray)) != null) {
           const reference = {
-            referencedKey: match[0].substring(2, match[0].length - 1),
             // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
             // Add 2 because we've trimmed off '${'
             // Add 1, I'm not really sure why. Maybe something about match.index starting at 0?
             keyPositionInValue: 5 + 2 + match.index + 1,
+            // Trim the ${} off of the match
+            referencedKey: match[0].substring(2, match[0].length - 1),
           };
           yamlNode.references.push(reference);
         }
@@ -180,64 +171,17 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
   public getReferenceables(document: any) {
     const parameters = document.get('Parameters');
     const resources = document.get('Resources');
-    return this.getKeys(parameters).concat(this.getKeys(resources));
+    return this.getYamlNodeKeys(parameters).concat(this.getYamlNodeKeys(resources));
   }
 
-  public getKeys(yamlNode: any): string[] {
-    if (yamlNode.items) {
+  public getYamlNodeKeys(yamlNode: any): string[] {
+    if (yamlNode && yamlNode.items) {
       return yamlNode.items.map((itemNode) => {
         return itemNode.stringKey;
       });
     }
     return [];
   }
-
-  // public getInvalidReferences(
-  //   yamlObject: any,
-  //   fullReferenceKeyPaths: string[],
-  //   referenceableKeys: string[])
-  //   : string[] {
-  //   const invalidReferences: string[] = [];
-  //   fullReferenceKeyPaths.forEach((keyPath) => {
-  //     const value = get(yamlObject, keyPath);
-  //     if (referenceableKeys.indexOf(value) < 0) {
-  //       if (invalidReferences.indexOf(value) < 0) {
-  //         invalidReferences.push(value);
-  //       }
-  //     }
-  //   });
-  //   return invalidReferences;
-  // }
-
-  // public getErrorPhrases(fullKeyPaths: string[]): { [key: string]: boolean } {
-  //   const errorPhrases: { [key: string]: boolean } = {};
-  //   fullKeyPaths.forEach((keyPath) => {
-  //     console.log(`Splitting key path: ${keyPath}`);
-  //     const pathPieces = keyPath.split('.');
-  //     const errorPhrase = `!${pathPieces[pathPieces.length - 1]} ${pathPieces[pathPieces.length - 2]}`
-  //     console.log(`errorPhrase: ${errorPhrase}`);
-  //     errorPhrases[errorPhrase] = true;
-  //   });
-  //   return errorPhrases;
-  // }
-
-  // public findKeys(keyName: string, object: any, keyPrefix?: string): string[] {
-  //   if (object === undefined || object === null) {
-  //     return [];
-  //   }
-  //   const keys = Object.keys(object);
-  //   let matchingKeys: string[] = [];
-  //   keys.forEach((key) => {
-  //     const currentFullKey = keyPrefix ? `${keyPrefix}.${key}` : key;
-  //     const currentObject = object[key];
-  //     if (key === keyName) {
-  //       matchingKeys.push(currentFullKey);
-  //     } else if (typeof currentObject === 'object' && currentObject !== null) {
-  //       matchingKeys = matchingKeys.concat(this.findKeys(keyName, currentObject, currentFullKey));
-  //     }
-  //   });
-  //   return matchingKeys;
-  // }
 
   public dispose() {
     this.diagnosticCollection.clear();
