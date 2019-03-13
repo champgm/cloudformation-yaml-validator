@@ -20,6 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('Congratulations, your extension "cloudformation-yaml-validator" is now active!');
   cloudformationYaml = new CloudformationYaml();
   cloudformationYaml.activate(context);
+  cloudformationYaml.go();
 
   // The command has been defined in the package.json file
   // Now provide the implementation of the command with registerCommand
@@ -33,7 +34,6 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showErrorMessage(`That didn\'t work, sorry: ${error.message}`);
     }
   });
-
   context.subscriptions.push(disposable);
 }
 
