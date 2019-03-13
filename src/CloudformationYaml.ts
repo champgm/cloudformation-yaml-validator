@@ -9,13 +9,37 @@ import { revealAllProperties, flattenArray } from './util';
 // import JSON from 'flatted';
 
 interface Reference {
-  referencedKey: string;
   keyPositionInValue: number;
+  referencedKey: string;
 }
 
 interface Node {
+  cstNode: any;
+  items?: NodePair[];
+  range: number[];
   references: Reference[];
+  tag: string;
+  type: string;
   [key: string]: any;
+}
+
+interface NodeKey {
+  cstNode: any;
+  range: number[];
+  type: string;
+  value: string;
+}
+
+interface NodePair {
+  commentBefore?: string;
+  key: NodeKey;
+  stringKey: string;
+  value: Node;
+}
+
+interface SubStackReferenceables {
+  outputs: string[];
+  parameters: { [templateUrl: string]: string[] };
 }
 
 export class CloudformationYaml implements vscode.CodeActionProvider {
@@ -53,25 +77,26 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     const text = editor.document.getText();
     const document = YAML.parseDocument(text, { keepCstNodes: true });
 
-
+    // Check all !Ref and !Sub tags
     const referenceableKeys = this.getReferenceables(document);
     const localResourceReferencingNodes = this.getNodesWhichReferenceLocalResources(document);
     const invalidLocalResourceReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, referenceableKeys, localResourceReferencingNodes);
 
+    // Check all !GetAtt tags
+    const subStackNodePairs = this.findSubStackNodePairs(document);
     const rootFilePath = editor.document.fileName;
     const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
-    const subStackNodePairs = this.findSubStackNodePairs(document);
     const subStackReferenceables = this.getSubStackReferenceables(subStackNodePairs, parentPath);
     const subStackAttributeReferencingNodes = this.getNodesWhichReferenceSubstackAttributes(document);
-    const invalidSubStacAttributeReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, subStackReferenceables, subStackAttributeReferencingNodes);
+    const invalidSubStacAttributeReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, subStackReferenceables.outputs, subStackAttributeReferencingNodes);
 
-    // TODO: check parameters in substacks
+    // Check parameters in sub stacks to make sure they can be referenced
+    const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
-
-
-    const combinedDiagnostics = invalidSubStacAttributeReferenceDiagnostics.concat(invalidLocalResourceReferenceDiagnostics);
-    // const combinedDiagnostics = invalidLocalResourceReferenceDiagnostics;
-    // const combinedDiagnostics = invalidSubStacAttributeReferenceDiagnostics;
+    const combinedDiagnostics =
+      invalidSubStackParameterDiagnostics
+        .concat(invalidSubStacAttributeReferenceDiagnostics
+          .concat(invalidLocalResourceReferenceDiagnostics));
 
     this.diagnosticCollection.clear();
     this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
@@ -89,17 +114,17 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     return [];
   }
 
-  private getSubStackNodePairs(yamlNodePair: any): Node[] {
-    const nodeValue = get(yamlNodePair, 'value');
+  private getSubStackNodePairs(nodePair: NodePair): NodePair[] {
+    const nodeValue = get(nodePair, 'value');
     if (nodeValue) {
       if (nodeValue.has('Type')) {
         if (nodeValue.get('Type') === 'AWS::CloudFormation::Stack') {
-          return [yamlNodePair];
+          return [nodePair];
         }
       }
 
       // Not a sub stack node, try going deeper
-      const items: any[] = get(yamlNodePair, 'value.items');
+      const items: any[] = get(nodePair, 'value.items');
       if (items && items.length > 0) {
         const subStackNodePairs = items.map((nodePair) => {
           return this.getSubStackNodePairs(nodePair);
@@ -110,25 +135,74 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     return [];
   }
 
-  private getSubStackReferenceables(nodePairs: any[], parentPath: string): string[] {
+  private buildInvalidSubStackParameterDiagnostics(fullText: string, subStackReferenceables: SubStackReferenceables, subStackNodePairs: NodePair[]): vscode.Diagnostic[] {
+    const subStackParameterDiagnostics: vscode.Diagnostic[] = [];
+    subStackNodePairs.forEach((subStackNodePair) => {
+      const node = subStackNodePair.value;
+      if (node.items) {
+        const properties = node.items.find((pair: NodePair) => {
+          return pair.stringKey === 'Properties';
+        });
+        if (properties && properties.value.items) {
+          const templateUrl = properties.value.get('TemplateURL');
+          const parameters = properties.value.items.find((pair: NodePair) => {
+            return pair.stringKey === 'Parameters';
+          });
+          if (parameters && parameters.value.items) {
+            const referenceableParameters = subStackReferenceables.parameters[templateUrl];
+            parameters.value.items.forEach((parameterPair) => {
+              if (referenceableParameters.indexOf(parameterPair.stringKey) < 0) {
+                const keyNode = parameterPair.key;
+                const position = this.getRowColumnPosition(fullText, keyNode.range[0]);
+                const range = new vscode.Range(
+                  position.line,
+                  position.column,
+                  position.line,
+                  position.column + parameterPair.stringKey.length,
+                );
+                const diagnostic = new vscode.Diagnostic(
+                  range,
+                  `Referenced file does not have parameter, '${parameterPair.stringKey}'`,
+                  vscode.DiagnosticSeverity.Error,
+                );
+                subStackParameterDiagnostics.push(diagnostic);
+              }
+            });
+          }
+        }
+      }
+    });
+    return subStackParameterDiagnostics;
+  }
+
+  private getSubStackReferenceables(nodePairs: any[], parentPath: string): SubStackReferenceables {
     const referenceableOutputs: string[] = [];
+    const referenceableParameters: { [templateUrl: string]: string[] } = {};
     nodePairs.forEach((nodePair) => {
       const properties = nodePair.value.get('Properties');
       if (properties) {
         const templateUrl = properties.get('TemplateURL');
+        referenceableParameters[templateUrl] = [];
         if (templateUrl) {
           const filePath = `${parentPath}/${templateUrl}`;
           const fileText = fs.readFileSync(filePath, 'utf8');
           const document: any = YAML.parseDocument(fileText, { keepCstNodes: true });
+
           const outputs = document.contents.get('Outputs');
           const outputKeys = this.getYamlNodeKeys(outputs);
-          outputKeys.forEach((outputKey) => {
-            referenceableOutputs.push(`${nodePair.stringKey}.Outputs.${outputKey}`);
+          outputKeys.forEach((key) => {
+            referenceableOutputs.push(`${nodePair.stringKey}.Outputs.${key}`);
+          });
+
+          const parameters = document.contents.get('Parameters');
+          const parameterKeys = this.getYamlNodeKeys(parameters);
+          parameterKeys.forEach((key) => {
+            referenceableParameters[templateUrl].push(`${key}`);
           });
         }
       }
     });
-    return referenceableOutputs;
+    return { outputs: referenceableOutputs, parameters: referenceableParameters };
   }
 
   private getNodesWhichReferenceSubstackAttributes(document: any) {
