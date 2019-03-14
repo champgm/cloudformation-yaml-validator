@@ -1,0 +1,27 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Fully Valid YAML
+
+Parameters:
+  FirstParameter:
+    Description: A parameter
+    Type: String
+
+  SecondParameter:
+    Description: A parameter
+    Type: String
+    Default: "SecondParameter default value"
+
+  ThirdParameter:
+    Description: A parameter
+    Type: String
+
+  FourthParameter:
+    Description: A parameter
+    Type: String
+    Default: "FourthParameter default value"
+
+Outputs:
+  FirstOutput:
+    Description: !Ref FirstParameter
+    Value: !Sub "${SecondParameter}-${ThirdParameter}-${FourthParameter}"

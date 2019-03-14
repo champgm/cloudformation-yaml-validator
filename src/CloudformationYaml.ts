@@ -40,18 +40,20 @@ interface SubStackReferenceables {
   parameters: { [templateUrl: string]: string[] };
 }
 
+
+export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
+
 export class CloudformationYaml {
-  private diagnosticCollectionName = 'CloudFormation Yaml Validator';
   private diagnosticCollection: vscode.DiagnosticCollection;
 
   constructor() {
-    this.diagnosticCollection = vscode.languages.createDiagnosticCollection(this.diagnosticCollectionName);
+    this.diagnosticCollection = vscode.languages.createDiagnosticCollection(diagnosticCollectionName);
   }
 
   public activate(context: vscode.ExtensionContext) {
     this.diagnosticCollection = this.diagnosticCollection
       ? this.diagnosticCollection
-      : vscode.languages.createDiagnosticCollection(this.diagnosticCollectionName);
+      : vscode.languages.createDiagnosticCollection(diagnosticCollectionName);
     const subscriptions: vscode.Disposable[] = context.subscriptions;
     if (subscriptions.indexOf(this) < 0) {
       subscriptions.push(this);
@@ -85,6 +87,10 @@ export class CloudformationYaml {
         // Check parameters in sub stacks to make sure they can be referenced
         const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
+        // TODO: Check for parameters not referenced, but without defaults
+        // TODO: Check conditionals exist
+        // TODO: Check map exists, and map keys (some keys are dynamically referenced though)
+
         const combinedDiagnostics =
           invalidSubStackParameterDiagnostics
             .concat(invalidSubStacAttributeReferenceDiagnostics
@@ -94,8 +100,8 @@ export class CloudformationYaml {
         this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
       }
     } catch (error) {
-      console.log(`${this.diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
-      vscode.window.showErrorMessage(`${this.diagnosticCollectionName}: ${error.message}`);
+      console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
+      vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     }
   }
 
@@ -309,8 +315,11 @@ export class CloudformationYaml {
         return flattenArray(referenceSubNodes);
       }
 
-      // Handle nodes with a !Ref tag
-      if (yamlNode.tag === '!Ref') {
+      // Handle nodes with a !Ref tag, but not ones that reference AWS stuff
+      if (
+        yamlNode.tag === '!Ref'
+        && !(yamlNode.value as string).startsWith('AWS::')
+      ) {
         yamlNode.references = [{
           referencedKey: yamlNode.value,
           // Add 5 because '!Ref ' is 5 and the range begins at the beginning of the field

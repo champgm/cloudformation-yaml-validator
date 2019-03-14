@@ -1,0 +1,35 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Fully Valid YAML
+
+Parameters:
+  FirstParameter:
+    Description: A parameter
+    Type: String
+
+  SecondParameter:
+    Description: A parameter
+    Type: String
+    Default: "SecondParameter default value"
+
+  ThirdParameter:
+    Description: A parameter
+    Type: String
+
+Resources:
+  FirstSubStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: subfolder/test_substack.yml
+      Parameters:
+        FirstParameter: !Ref FirstParameter
+        SecondParameter:
+          Fn::ImportValue: !Sub "one-${SecondParameter}-three"
+        ThirdParameter: !If [FirstConditional, !Ref FourthParameter, !FindInMap [FirstMap, !Ref "AWS::Region", FourthParameter]]
+
+  SecondSubStack:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !GetAtt FirstSubStack.Outputs.FirstOutput
+
+
