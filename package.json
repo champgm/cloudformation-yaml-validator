@@ -11,8 +11,7 @@
   ],
   "activationEvents": [
     "onLanguage:yaml",
-    "onLanguage:yml",
-    "onCommand:extension.helloWorld"
+    "onCommand:extension.cloudFormationYamlValidator"
   ],
   "repository": {
     "type": "git",
@@ -25,8 +24,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.helloWorld",
-        "title": "Hello World"
+        "command": "extension.cloudFormationYamlValidator",
+        "title": "Cloud Formation YAML Validator: Validate YAML"
       }
     ]
   },
@@ -39,7 +38,6 @@
     "lint": "tslint src/**/*.ts --fix"
   },
   "devDependencies": {
-    "@types/js-yaml": "^3.12.0",
     "@types/lodash.clone": "^4.5.6",
     "@types/lodash.get": "^4.4.6",
     "@types/mocha": "^2.2.42",

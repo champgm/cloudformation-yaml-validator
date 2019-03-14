@@ -1,12 +1,9 @@
 import fs from 'fs';
 import * as vscode from 'vscode';
 
-// import { safeLoad } from 'js-yaml';
 import YAML from 'yaml';
-// import schema from 'cloudformation-schema-js-yaml';
 import get from 'lodash.get';
 import { revealAllProperties, flattenArray } from './util';
-// import JSON from 'flatted';
 
 interface Reference {
   keyPositionInValue: number;
@@ -20,6 +17,7 @@ interface Node {
   references: Reference[];
   tag: string;
   type: string;
+  has?: (key: string) => boolean;
   [key: string]: any;
 }
 
@@ -42,10 +40,10 @@ interface SubStackReferenceables {
   parameters: { [templateUrl: string]: string[] };
 }
 
-export class CloudformationYaml implements vscode.CodeActionProvider {
-
+export class CloudformationYaml {
   private diagnosticCollectionName = 'CloudFormation Yaml Validator';
   private diagnosticCollection: vscode.DiagnosticCollection;
+
   constructor() {
     this.diagnosticCollection = vscode.languages.createDiagnosticCollection(this.diagnosticCollectionName);
   }
@@ -55,52 +53,50 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
       ? this.diagnosticCollection
       : vscode.languages.createDiagnosticCollection(this.diagnosticCollectionName);
     const subscriptions: vscode.Disposable[] = context.subscriptions;
-    subscriptions.push(this);
-    // vscode.workspace.onDidOpenTextDocument(this.go, this, subscriptions);
-    // vscode.workspace.onDidCloseTextDocument((textDocument) => { this.diagnosticCollection.delete(textDocument.uri); }, null, subscriptions);
-    // vscode.workspace.onDidSaveTextDocument(this.go, this, subscriptions);
-    // vscode.workspace.onDidChangeTextDocument(this.go, this, subscriptions);
-    // vscode.workspace.onDidChangeConfiguration(this.go, this);
+    if (subscriptions.indexOf(this) < 0) {
+      subscriptions.push(this);
+    }
+    vscode.workspace.onDidOpenTextDocument(this.checkYaml, this, subscriptions);
+    vscode.workspace.onDidCloseTextDocument((textDocument) => { this.diagnosticCollection.delete(textDocument.uri); }, null, subscriptions);
+    vscode.workspace.onDidSaveTextDocument(this.checkYaml, this, subscriptions);
+    vscode.workspace.onDidChangeTextDocument(this.checkYaml, this, subscriptions);
   }
 
-  public provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range | vscode.Selection,
-    context: vscode.CodeActionContext,
-    token: vscode.CancellationToken): vscode.ProviderResult<(vscode.Command | vscode.CodeAction)[]> {
-    return null;
-  }
+  public checkYaml() {
+    try {
+      const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
+      if (editor.document.languageId === 'yaml') {
+        const text = editor.document.getText();
+        const document = YAML.parseDocument(text, { keepCstNodes: true });
 
-  public go() {
-    console.log(`GO FUNCTION TRIGGERED`);
-    const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
-    const text = editor.document.getText();
-    const document = YAML.parseDocument(text, { keepCstNodes: true });
+        // Check all !Ref and !Sub tags
+        const referenceableKeys = this.getLocalReferenceables(document);
+        const localResourceReferencingNodes = this.getNodesWhichReferenceLocalResources(document);
+        const invalidLocalResourceReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, referenceableKeys, localResourceReferencingNodes);
 
-    // Check all !Ref and !Sub tags
-    const referenceableKeys = this.getReferenceables(document);
-    const localResourceReferencingNodes = this.getNodesWhichReferenceLocalResources(document);
-    const invalidLocalResourceReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, referenceableKeys, localResourceReferencingNodes);
+        // Check all !GetAtt tags
+        const subStackNodePairs = this.findSubStackNodePairs(document);
+        const rootFilePath = editor.document.fileName;
+        const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
+        const subStackReferenceables = this.getSubStackReferenceables(subStackNodePairs, parentPath);
+        const subStackAttributeReferencingNodes = this.getNodesWhichReferenceSubstackAttributes(document);
+        const invalidSubStacAttributeReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, subStackReferenceables.outputs, subStackAttributeReferencingNodes);
 
-    // Check all !GetAtt tags
-    const subStackNodePairs = this.findSubStackNodePairs(document);
-    const rootFilePath = editor.document.fileName;
-    const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
-    const subStackReferenceables = this.getSubStackReferenceables(subStackNodePairs, parentPath);
-    const subStackAttributeReferencingNodes = this.getNodesWhichReferenceSubstackAttributes(document);
-    const invalidSubStacAttributeReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, subStackReferenceables.outputs, subStackAttributeReferencingNodes);
+        // Check parameters in sub stacks to make sure they can be referenced
+        const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
-    // Check parameters in sub stacks to make sure they can be referenced
-    const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
+        const combinedDiagnostics =
+          invalidSubStackParameterDiagnostics
+            .concat(invalidSubStacAttributeReferenceDiagnostics
+              .concat(invalidLocalResourceReferenceDiagnostics));
 
-    const combinedDiagnostics =
-      invalidSubStackParameterDiagnostics
-        .concat(invalidSubStacAttributeReferenceDiagnostics
-          .concat(invalidLocalResourceReferenceDiagnostics));
-
-    this.diagnosticCollection.clear();
-    this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
-    console.log(`done`);
+        this.diagnosticCollection.clear();
+        this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
+      }
+    } catch (error) {
+      console.log(`${this.diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
+      vscode.window.showErrorMessage(`${this.diagnosticCollectionName}: ${error.message}`);
+    }
   }
 
   private findSubStackNodePairs(document: any) {
@@ -117,7 +113,7 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
   private getSubStackNodePairs(nodePair: NodePair): NodePair[] {
     const nodeValue = get(nodePair, 'value');
     if (nodeValue) {
-      if (nodeValue.has('Type')) {
+      if (nodeValue.has && nodeValue.has('Type')) {
         if (nodeValue.get('Type') === 'AWS::CloudFormation::Stack') {
           return [nodePair];
         }
@@ -230,6 +226,7 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
           // Add 7 because '!GetAtt ' is 7 and the range begins at the beginning of the field
           // Add 1 because... I still don't know why, see !Sub, similar issue.
           // Hey maybe it's counting the space between ':' and '!GetAtt' ?
+          // I'm sure it has nothing to do with getRowColumnPosition's logic ^_^
           keyPositionInValue: 7 + 1,
         }];
         return [yamlNode];
@@ -281,14 +278,15 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     }
 
     // Matches will contain each match on line return
-    // the number of matches is the number of lines in the file
+    // the number of matches is the number of line-returns in the file before this position
+    // That is also the line (starting from 0) on which this position can be found
     const line = matches.length;
 
     // The last line return in textBefore is the one before our absolute position
     const lastLineReturn = matches[matches.length - 1];
     const afterLastLineReturn = lastLineReturn.index + lastLineReturn[0].length;
 
-    // So, absolute - lastReturn should give us the column number for our absolute position
+    // So, absolutePosition - afterLastLineReturn should give us the column number for our absolute position
     const column = absolutePosition - afterLastLineReturn;
     return { column, line };
   }
@@ -344,7 +342,7 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     return [];
   }
 
-  private getReferenceables(document: any) {
+  private getLocalReferenceables(document: any) {
     const parameters = document.get('Parameters');
     const resources = document.get('Resources');
     return this.getYamlNodeKeys(parameters).concat(this.getYamlNodeKeys(resources));
@@ -359,12 +357,16 @@ export class CloudformationYaml implements vscode.CodeActionProvider {
     return [];
   }
 
-  private getYamlNodePairKeys(yamlNodePair: any): string[] {
-    return this.getYamlNodeKeys(yamlNodePair.value);
+  public dispose() {
+    if (this.diagnosticCollection) {
+      this.diagnosticCollection.clear();
+      this.diagnosticCollection.dispose();
+    }
   }
 
-  public dispose() {
-    this.diagnosticCollection.clear();
-    this.diagnosticCollection.dispose();
+  public reset() {
+    if (this.diagnosticCollection) {
+      this.diagnosticCollection.clear();
+    }
   }
 }
