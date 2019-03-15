@@ -16,6 +16,10 @@ Parameters:
     Type: String
     Default: "FourthParameter default value"
 
+  FifthParameter:
+    Description: A parameter
+    Type: String
+
 Outputs:
   FirstOutput:
     Description: !Ref FirstParameter

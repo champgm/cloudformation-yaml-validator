@@ -101,8 +101,6 @@ export class CloudformationYaml {
         // Check parameters in sub stacks to make sure they can be referenced
         const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
-        // TODO: Check for parameters not referenced, but without defaults
-
         // TODO: what if template URL references a file that doesn't exist?
 
         const combinedDiagnostics =
@@ -134,8 +132,7 @@ export class CloudformationYaml {
 
   private getSubStackNodePairs(node: Node): Node[] {
     if (!node) return [];
-    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
-    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    const nodeValue = this.getNodeValueIfPair(node);
     if (nodeValue) {
       if (nodeValue.type === NodeTypes.MAP && nodeValue.items) {
         if (nodeValue.get('Type') === 'AWS::CloudFormation::Stack') {
@@ -153,63 +150,68 @@ export class CloudformationYaml {
   private buildInvalidSubStackParameterDiagnostics(fullText: string, subStackReferenceables: SubStackReferenceables, subStackNodePairs: Node[]): vscode.Diagnostic[] {
     const subStackParameterDiagnostics: vscode.Diagnostic[] = [];
     subStackNodePairs.forEach((subStackNodePair) => {
+      // Get the Properties sub node and abort if it's missing or invalid
       const subStackNodeValue = subStackNodePair.value;
-      const properties = this.getNodeItemByStringKey(subStackNodeValue, 'Properties');
-      if (properties) {
-        if (properties.type === NodeTypes.MAP) {
-          const templateUrl = properties.value.get('TemplateURL');
-          const parameters: Node = properties.value.items.find((pair: Node) => {
-            return pair.stringKey === 'Parameters';
-          });
-          if (parameters.type === NodeTypes.MAP) {
-            const referenceableParameters = clone(subStackReferenceables.parameters[templateUrl]);
-            (parameters.value.items as Node[]).forEach((parameterPair) => {
-              const matchingParameter = referenceableParameters.find((referenceableParameter) => {
-                return parameterPair.stringKey === referenceableParameter.parameterName;
-              });
-              if (matchingParameter) {
-                // If there's a matching parameter in the file, awesome, take it out of the list so we can inspect remainders
-                referenceableParameters.splice(referenceableParameters.indexOf(matchingParameter), 1);
-              } else {
-                // Otherwise, there's a reference to a parameter which does not exist, let's make a diagnostic.
-                const keyNode = parameterPair.key;
-                const position = this.getRowColumnPosition(fullText, keyNode.range[0]);
-                const parameterRange = new vscode.Range(
-                  position.line,
-                  position.column,
-                  position.line,
-                  position.column + parameterPair.stringKey.length,
-                );
-                const diagnostic = new vscode.Diagnostic(
-                  parameterRange,
-                  `Referenced file does not have parameter, '${parameterPair.stringKey}'`,
-                  vscode.DiagnosticSeverity.Error,
-                );
-                subStackParameterDiagnostics.push(diagnostic);
-              }
-              // Now that that's done, let's look at the parameters which were not referenced
-              if (referenceableParameters.length > 0) {
-                const propertiesPosition = this.getRowColumnPosition(fullText, properties.range[0]);
-                const propertiesRange = new vscode.Range(
-                  propertiesPosition.line,
-                  propertiesPosition.column,
-                  propertiesPosition.line,
-                  propertiesPosition.column + 'Properties'.length,
-                );
-                referenceableParameters.forEach((referenceableParameter) => {
-                  const message = referenceableParameter.hasDefault
-                    ? `Properties missing value for parameter with default value, '${referenceableParameter.parameterName}'`
-                    : `Properties missing value for required parameter, '${referenceableParameter.parameterName}'`
-                  const severity = referenceableParameter.hasDefault
-                    ? vscode.DiagnosticSeverity.Warning
-                    : vscode.DiagnosticSeverity.Error;
-                  const diagnostic = new vscode.Diagnostic(propertiesRange, message, severity);
-                  subStackParameterDiagnostics.push(diagnostic);
-                });
-              }
-            });
-          }
+      const properties = this.getNodeValueIfPair(this.getNodeItemByStringKey(subStackNodeValue, 'Properties'));
+      if (!properties) return;
+
+      // Get the Parameters sub node and abort if it's missing or invalid
+      const parameters = this.getNodeValueIfPair(this.getNodeItemByStringKey(properties, 'Parameters'));
+      if (!parameters || !parameters.items) return;
+
+      // Get the template URL and matching parameters for the sub stack
+      const templateUrl = properties.get('TemplateURL');
+      const referenceableParameters = clone(subStackReferenceables.parameters[templateUrl]);
+      // Iterate over each of the current file's parameter references and create diagnostics if necessary
+      parameters.items.forEach((parameterPair) => {
+        const matchingParameter = referenceableParameters.find((referenceableParameter) => {
+          return parameterPair.stringKey === referenceableParameter.parameterName;
+        });
+        if (matchingParameter) {
+          // If there's a matching parameter in the file, awesome, take it out of the list so we can inspect remainders
+          referenceableParameters.splice(referenceableParameters.indexOf(matchingParameter), 1);
+        } else {
+          // Otherwise, there's a reference to a parameter which does not exist, let's make a diagnostic.
+          const keyNode = parameterPair.key;
+          const position = this.getRowColumnPosition(fullText, keyNode.range[0]);
+          const parameterRange = new vscode.Range(
+            position.line,
+            position.column,
+            position.line,
+            position.column + parameterPair.stringKey.length,
+          );
+          const diagnostic = new vscode.Diagnostic(
+            parameterRange,
+            `Referenced file does not have parameter, '${parameterPair.stringKey}'`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          subStackParameterDiagnostics.push(diagnostic);
         }
+      });
+
+      // Now that that's done, let's look at the parameters which were not referenced
+      // Some might have default values, and that's fine, but a warning might be helpful
+      console.log(`referenceableParameters: ${JSON.stringify(referenceableParameters)}`);
+      if (referenceableParameters.length > 0) {
+        const propertiesPair = this.getNodeItemByStringKey(properties, 'Parameters');
+        if (!propertiesPair) return;
+        const propertiesPosition = this.getRowColumnPosition(fullText, propertiesPair.key.range[0]);
+        const propertiesRange = new vscode.Range(
+          propertiesPosition.line,
+          propertiesPosition.column,
+          propertiesPosition.line,
+          propertiesPosition.column + 'Properties'.length,
+        );
+        referenceableParameters.forEach((referenceableParameter) => {
+          const message = referenceableParameter.hasDefault
+            ? `Properties missing value for parameter with default value, '${referenceableParameter.parameterName}'`
+            : `Properties missing value for required parameter, '${referenceableParameter.parameterName}'`
+          const severity = referenceableParameter.hasDefault
+            ? vscode.DiagnosticSeverity.Warning
+            : vscode.DiagnosticSeverity.Error;
+          const diagnostic = new vscode.Diagnostic(propertiesRange, message, severity);
+          subStackParameterDiagnostics.push(diagnostic);
+        });
       }
     });
     return subStackParameterDiagnostics;
@@ -262,8 +264,7 @@ export class CloudformationYaml {
 
   private getSubNodesWhichReferenceSubstackAttributes(node: Node): Node[] {
     if (!node) return [];
-    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
-    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    const nodeValue = this.getNodeValueIfPair(node);
     if (nodeValue) {
       if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
         const subNodes = nodeValue.items.map((item) => {
@@ -357,8 +358,7 @@ export class CloudformationYaml {
 
   private getSubNodesWhichReferenceLocalResources(node: Node): Node[] {
     if (!node) return [];
-    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
-    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    const nodeValue = this.getNodeValueIfPair(node);
     if (nodeValue) {
       if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
         const subNodes = nodeValue.items.map((item) => {
@@ -415,6 +415,13 @@ export class CloudformationYaml {
       }
     }
     return [];
+  }
+
+  private getNodeValueIfPair(node: Node | undefined): Node | undefined {
+    if (!node) return undefined;
+    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
+    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    return nodeValue;
   }
 
   private getNodeItemByStringKey(node: Node, stringKey: string): Node | undefined {
