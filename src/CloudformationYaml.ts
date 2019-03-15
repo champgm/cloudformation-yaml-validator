@@ -6,40 +6,49 @@ import get from 'lodash.get';
 import { revealAllProperties, flattenArray } from './util';
 
 interface Reference {
-  keyPositionInValue: number;
+  absoluteKeyPosition: number;
   referencedKey: string;
 }
 
+enum NodeTypes {
+  MAP = 'MAP',
+  PAIR = 'PAIR',
+  PLAIN = 'PLAIN',
+  FLOW_SEQ = 'FLOW_SEQ',
+  QUOTE_DOUBLE = 'QUOTE_DOUBLE',
+}
+
 interface Node {
+  type: string;
   cstNode: any;
-  items?: NodePair[];
+  items?: Node[];
   range: number[];
   references: Reference[];
   tag: string;
-  type: string;
   has?: (key: string) => boolean;
   [key: string]: any;
 }
 
-interface NodeKey {
-  cstNode: any;
-  range: number[];
-  type: string;
-  value: string;
-}
-
-interface NodePair {
-  commentBefore?: string;
-  key: NodeKey;
-  stringKey: string;
-  value: Node;
+interface LocalReferenceables {
+  conditions: string[];
+  mappings: string[];
+  parameters: string[];
+  resources: string[];
 }
 
 interface SubStackReferenceables {
   outputs: string[];
-  parameters: { [templateUrl: string]: string[] };
+  parameters: SubStackParameterReferenceablesMap;
 }
 
+interface SubStackParameterReferenceablesMap {
+  [templateUrl: string]: SubStackParameterReferenceable[];
+}
+
+interface SubStackParameterReferenceable {
+  parameterName: string;
+  hasDefault: boolean;
+}
 
 export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
@@ -67,13 +76,17 @@ export class CloudformationYaml {
   public checkYaml() {
     try {
       const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
-      if (editor.document.languageId === 'yaml') {
+      if (get(editor, 'document.languageId') === 'yaml') {
         const text = editor.document.getText();
         const document = YAML.parseDocument(text, { keepCstNodes: true });
 
         // Check all !Ref and !Sub tags
-        const referenceableKeys = this.getLocalReferenceables(document);
+        const localReferenceables = this.getLocalReferenceables(document);
         const localResourceReferencingNodes = this.getNodesWhichReferenceLocalResources(document);
+        const referenceableKeys = localReferenceables.parameters
+          .concat(localReferenceables.resources)
+          .concat(localReferenceables.mappings)
+          .concat(localReferenceables.conditions);
         const invalidLocalResourceReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, referenceableKeys, localResourceReferencingNodes);
 
         // Check all !GetAtt tags
@@ -88,8 +101,6 @@ export class CloudformationYaml {
         const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
         // TODO: Check for parameters not referenced, but without defaults
-        // TODO: Check conditionals exist
-        // TODO: Check map exists, and map keys (some keys are dynamically referenced though)
 
         const combinedDiagnostics =
           invalidSubStackParameterDiagnostics
@@ -98,6 +109,8 @@ export class CloudformationYaml {
 
         this.diagnosticCollection.clear();
         this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
+
+        console.log(`diagnostics set`);
       }
     } catch (error) {
       console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
@@ -116,19 +129,16 @@ export class CloudformationYaml {
     return [];
   }
 
-  private getSubStackNodePairs(nodePair: NodePair): NodePair[] {
-    const nodeValue = get(nodePair, 'value');
+  private getSubStackNodePairs(node: Node): Node[] {
+    if (!node) return [];
+    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
+    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
     if (nodeValue) {
-      if (nodeValue.has && nodeValue.has('Type')) {
+      if (nodeValue.type === NodeTypes.MAP && nodeValue.items) {
         if (nodeValue.get('Type') === 'AWS::CloudFormation::Stack') {
-          return [nodePair];
+          return [node];
         }
-      }
-
-      // Not a sub stack node, try going deeper
-      const items: any[] = get(nodePair, 'value.items');
-      if (items && items.length > 0) {
-        const subStackNodePairs = items.map((nodePair) => {
+        const subStackNodePairs = nodeValue.items.map((nodePair) => {
           return this.getSubStackNodePairs(nodePair);
         });
         return flattenArray(subStackNodePairs);
@@ -137,22 +147,25 @@ export class CloudformationYaml {
     return [];
   }
 
-  private buildInvalidSubStackParameterDiagnostics(fullText: string, subStackReferenceables: SubStackReferenceables, subStackNodePairs: NodePair[]): vscode.Diagnostic[] {
+  private buildInvalidSubStackParameterDiagnostics(fullText: string, subStackReferenceables: SubStackReferenceables, subStackNodePairs: Node[]): vscode.Diagnostic[] {
     const subStackParameterDiagnostics: vscode.Diagnostic[] = [];
     subStackNodePairs.forEach((subStackNodePair) => {
       const node = subStackNodePair.value;
       if (node.items) {
-        const properties = node.items.find((pair: NodePair) => {
+        const properties = node.items.find((pair: Node) => {
           return pair.stringKey === 'Properties';
         });
         if (properties && properties.value.items) {
           const templateUrl = properties.value.get('TemplateURL');
-          const parameters = properties.value.items.find((pair: NodePair) => {
+          const parameters = properties.value.items.find((pair: Node) => {
             return pair.stringKey === 'Parameters';
           });
           if (parameters && parameters.value.items) {
             const referenceableParameters = subStackReferenceables.parameters[templateUrl];
             parameters.value.items.forEach((parameterPair) => {
+
+
+
               if (referenceableParameters.indexOf(parameterPair.stringKey) < 0) {
                 const keyNode = parameterPair.key;
                 const position = this.getRowColumnPosition(fullText, keyNode.range[0]);
@@ -169,6 +182,8 @@ export class CloudformationYaml {
                 );
                 subStackParameterDiagnostics.push(diagnostic);
               }
+
+
             });
           }
         }
@@ -179,7 +194,7 @@ export class CloudformationYaml {
 
   private getSubStackReferenceables(nodePairs: any[], parentPath: string): SubStackReferenceables {
     const referenceableOutputs: string[] = [];
-    const referenceableParameters: { [templateUrl: string]: string[] } = {};
+    const referenceableParameters: SubStackParameterReferenceablesMap = {};
     nodePairs.forEach((nodePair) => {
       const properties = nodePair.value.get('Properties');
       if (properties) {
@@ -196,11 +211,26 @@ export class CloudformationYaml {
             referenceableOutputs.push(`${nodePair.stringKey}.Outputs.${key}`);
           });
 
-          const parameters = document.contents.get('Parameters');
-          const parameterKeys = this.getYamlNodeKeys(parameters);
-          parameterKeys.forEach((key) => {
-            referenceableParameters[templateUrl].push(`${key}`);
-          });
+          const parameters: Node = document.contents.get('Parameters');
+          if (parameters && parameters.items) {
+            parameters.items.forEach((item) => {
+              if (item.type === NodeTypes.PAIR && item.value) {
+                const defaultValue = item.value.get('Default');
+                referenceableParameters[templateUrl].push({
+                  parameterName: item.stringKey,
+                  hasDefault: !!defaultValue,
+                });
+              }
+            });
+          }
+          console.log(`paremters`);
+          // const parameterKeys = this.getYamlNodeKeys(parameters);
+          // parameterKeys.forEach((key) => {
+          //   referenceableParameters[templateUrl].push({
+          //     parameterName: key,
+          //     hasDefault: false,
+          //   });
+          // });
         }
       }
     });
@@ -214,28 +244,34 @@ export class CloudformationYaml {
       .concat(this.getSubNodesWhichReferenceSubstackAttributes(outputs));
   }
 
-  private getSubNodesWhichReferenceSubstackAttributes(yamlNode: Node): Node[] {
-    if (yamlNode) {
-      const keys = this.getYamlNodeKeys(yamlNode);
-      if (keys.length > 0) {
-        // This means the node is a map, not a node with a value which could contain a reference
-        const referenceSubNodes = keys.map((key) => {
-          return this.getSubNodesWhichReferenceSubstackAttributes(yamlNode.get(key, true));
+  private getSubNodesWhichReferenceSubstackAttributes(node: Node): Node[] {
+    if (!node) return [];
+    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
+    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    if (nodeValue) {
+      if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
+        const subNodes = nodeValue.items.map((item) => {
+          if (!item.tag) {
+            item.tag = nodeValue.tag;
+          }
+          return this.getSubNodesWhichReferenceSubstackAttributes(item);
         });
-        return flattenArray(referenceSubNodes);
+        return flattenArray(subNodes);
       }
 
-      // Handle nodes with a !Ref tag
-      if (yamlNode.tag === '!GetAtt') {
-        yamlNode.references = [{
-          referencedKey: yamlNode.value,
-          // Add 7 because '!GetAtt ' is 7 and the range begins at the beginning of the field
-          // Add 1 because... I still don't know why, see !Sub, similar issue.
-          // Hey maybe it's counting the space between ':' and '!GetAtt' ?
-          // I'm sure it has nothing to do with getRowColumnPosition's logic ^_^
-          keyPositionInValue: 7 + 1,
-        }];
-        return [yamlNode];
+      if (nodeValue.type === NodeTypes.PLAIN || nodeValue.type === NodeTypes.QUOTE_DOUBLE) {
+        // Handle nodes with a !Ref tag
+        if (nodeValue.tag === '!GetAtt') {
+          nodeValue.references = [{
+            referencedKey: nodeValue.value,
+            // Add 7 because '!GetAtt ' is 7 and the range begins at the beginning of the field
+            // Add 1 because... I still don't know why, see !Sub, similar issue.
+            // Hey maybe it's counting the space between ':' and '!GetAtt' ?
+            // I'm sure it has nothing to do with getRowColumnPosition's logic ^_^
+            absoluteKeyPosition: nodeValue.range[0] + 7 + 1,
+          }];
+          return [nodeValue];
+        }
       }
     }
     return [];
@@ -250,13 +286,12 @@ export class CloudformationYaml {
     referencingNodes.forEach((node) => {
       node.references.forEach((reference) => {
         if (referenceableKeys.indexOf(reference.referencedKey) < 0) {
-          const position = this.getRowColumnPosition(fullText, node.range[0]);
+          const position = this.getRowColumnPosition(fullText, reference.absoluteKeyPosition);
           const range = new vscode.Range(
             position.line,
-            // The column starts at the beginning of the value (including any tags)
-            position.column + reference.keyPositionInValue,
+            position.column,
             position.line,
-            position.column + reference.keyPositionInValue + reference.referencedKey.length,
+            position.column + reference.referencedKey.length,
           );
           const diagnostic = new vscode.Diagnostic(
             range,
@@ -304,57 +339,79 @@ export class CloudformationYaml {
       .concat(this.getSubNodesWhichReferenceLocalResources(outputs));
   }
 
-  private getSubNodesWhichReferenceLocalResources(yamlNode: Node): Node[] {
-    if (yamlNode) {
-      const keys = this.getYamlNodeKeys(yamlNode);
-      if (keys.length > 0) {
-        // This means the node is a map, not a node with a value which could contain a reference
-        const referenceSubNodes = keys.map((key) => {
-          return this.getSubNodesWhichReferenceLocalResources(yamlNode.get(key, true));
+  private getSubNodesWhichReferenceLocalResources(node: Node): Node[] {
+    if (!node) return [];
+    const nodeValue: Node = node.type === NodeTypes.PAIR ? get(node, 'value') : node;
+    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
+    if (nodeValue) {
+      if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
+        const subNodes = nodeValue.items.map((item) => {
+          if (!item.tag) {
+            item.tag = nodeValue.tag;
+          }
+          return this.getSubNodesWhichReferenceLocalResources(item);
         });
-        return flattenArray(referenceSubNodes);
+        return flattenArray(subNodes);
       }
 
-      // Handle nodes with a !Ref tag, but not ones that reference AWS stuff
-      if (
-        yamlNode.tag === '!Ref'
-        && !(yamlNode.value as string).startsWith('AWS::')
-      ) {
-        yamlNode.references = [{
-          referencedKey: yamlNode.value,
-          // Add 5 because '!Ref ' is 5 and the range begins at the beginning of the field
-          keyPositionInValue: 5,
-        }];
-        return [yamlNode];
-      }
-
-      // Handle nodes with a !Sub tag
-      if (yamlNode.tag === '!Sub') {
-        // This will find ALL ${references} in the !Sub
-        let match: RegExpExecArray;
-        yamlNode.references = [];
-        const regEx = new RegExp('\\${[^}]*}', 'g');
-        while ((match = (regEx.exec(yamlNode.value as string) as RegExpExecArray)) != null) {
-          const reference = {
-            // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
-            // Add 2 because we've trimmed off '${'
-            // Add 1, I'm not really sure why. Maybe something about match.index starting at 0?
-            keyPositionInValue: 5 + 2 + match.index + 1,
-            // Trim the ${} off of the match
-            referencedKey: match[0].substring(2, match[0].length - 1),
-          };
-          yamlNode.references.push(reference);
+      if (nodeValue.type === NodeTypes.PLAIN || nodeValue.type === NodeTypes.QUOTE_DOUBLE) {
+        // Handle nodes without a tag, these are probably first members of an !If or !FindInMap
+        if (nodeValue.tag === '!If' || nodeValue.tag === '!FindInMap' || nodeValue.stringKey === 'DependsOn') {
+          nodeValue.references = [{
+            referencedKey: nodeValue.value,
+            absoluteKeyPosition: nodeValue.range[0],
+          }];
+          return [nodeValue];
         }
-        return [yamlNode];
+
+        // Handle nodes with a !Ref tag, but not ones that reference AWS stuff
+        if (
+          nodeValue.tag === '!Ref'
+          && !(nodeValue.value as string).startsWith('AWS::')
+        ) {
+          nodeValue.references = [{
+            referencedKey: nodeValue.value,
+            // Add 5 because '!Ref ' is 5 and the range begins at the beginning of the field
+            absoluteKeyPosition: nodeValue.range[0] + 5,
+          }];
+          return [nodeValue];
+        }
+
+        // Handle nodes with a !Sub tag
+        if (nodeValue.tag === '!Sub') {
+          // This will find ALL ${references} in the !Sub
+          let match: RegExpExecArray;
+          nodeValue.references = [];
+          const regEx = new RegExp('\\${[^}]*}', 'g');
+          while ((match = (regEx.exec(nodeValue.value as string) as RegExpExecArray)) != null) {
+            const reference = {
+              // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
+              // Add 2 because we've trimmed off '${'
+              // Add 1, I'm not really sure why. Maybe something about match.index starting at 0?
+              absoluteKeyPosition: nodeValue.range[0] + 5 + 2 + match.index + 1,
+              // Trim the ${} off of the match
+              referencedKey: match[0].substring(2, match[0].length - 1),
+            };
+            nodeValue.references.push(reference);
+          }
+          return [nodeValue];
+        }
       }
     }
     return [];
   }
 
-  private getLocalReferenceables(document: any) {
+  private getLocalReferenceables(document: any): LocalReferenceables {
     const parameters = document.get('Parameters');
     const resources = document.get('Resources');
-    return this.getYamlNodeKeys(parameters).concat(this.getYamlNodeKeys(resources));
+    const conditions = document.get('Conditions');
+    const mappings = document.get('Mappings');
+    return {
+      parameters: this.getYamlNodeKeys(parameters),
+      resources: this.getYamlNodeKeys(resources),
+      mappings: this.getYamlNodeKeys(mappings),
+      conditions: this.getYamlNodeKeys(conditions),
+    };
   }
 
   private getYamlNodeKeys(yamlNode: any): string[] {

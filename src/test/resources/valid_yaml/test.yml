@@ -22,7 +22,7 @@ Parameters:
     Default: "FourthParameter default value"
 
 Conditions:
-  BucketSpecified: false
+  FirstConditional: false
 
 Mappings:
   FirstMap:

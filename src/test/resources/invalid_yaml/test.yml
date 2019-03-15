@@ -29,6 +29,7 @@ Resources:
 
   SecondSubStack:
     Type: AWS::ApiGateway::RestApi
+    DependsOn: NonexistentSubstack
     Properties:
       # This should cause an error, substack has no output, SecondOutput
       Name: !GetAtt FirstSubStack.Outputs.SecondOutput
