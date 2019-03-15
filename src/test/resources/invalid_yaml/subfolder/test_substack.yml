@@ -7,11 +7,6 @@ Parameters:
     Description: A parameter
     Type: String
 
-  SecondParameter:
-    Description: A parameter
-    Type: String
-    Default: "SecondParameter default value"
-
   ThirdParameter:
     Description: A parameter
     Type: String

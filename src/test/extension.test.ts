@@ -5,7 +5,7 @@
 
 // The module 'assert' provides assertion methods from node
 import * as assert from 'assert';
-import vscode from 'vscode';
+import vscode, { Uri, Diagnostic } from 'vscode';
 import path from 'path';
 import { diagnosticCollectionName } from '../CloudformationYaml';
 
@@ -20,31 +20,29 @@ suite('Extension Integration Tests', () => {
     const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/valid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
     const editor = await vscode.window.showTextDocument(document);
-    await diagnosticsChange();
-    console.log(`DIAGNOSTICS ${JSON.stringify(vscode.languages.getDiagnostics())}`);
-
-    // TODO: figure out how to assert no diagnostics...
+    const diagnostics = await getDiagnostics(uri);
+    assert.deepEqual(diagnostics.length, 0, 'Diagnostics array should be empty');
   });
 
   test('Finds diagnostics given invalid yaml files', async () => {
     const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/invalid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
     const editor = await vscode.window.showTextDocument(document);
-    await diagnosticsChange();
-    console.log(`DIAGNOSTICS ${JSON.stringify(vscode.languages.getDiagnostics())}`);
-
-    // TODO: figure out how to assert no diagnostics...
+    const diagnostics = await getDiagnostics(uri);
+    console.log(`DIAGNOSTCS: ${JSON.stringify(diagnostics)}`);
+    assert.deepEqual(diagnostics.length, 5, 'Diagnostics array should be empty');
   });
 });
 
-function diagnosticsChange(): Promise<vscode.DiagnosticChangeEvent> {
+function getDiagnostics(uri: Uri): Promise<Diagnostic[]> {
   return new Promise(async (resolve, reject) => {
     let resolved = false;
     vscode.languages.onDidChangeDiagnostics((event) => {
+      const uriDiagnostics = vscode.languages.getDiagnostics(uri);
       resolved = true;
-      resolve(event);
+      resolve(uriDiagnostics);
     });
-    await sleep(20000);
+    await sleep(10000);
     if (!resolved) {
       reject('Diagnostic wait timed out');
     }
