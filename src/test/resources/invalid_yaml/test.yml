@@ -33,3 +33,10 @@ Resources:
     Properties:
       # This should cause an error, substack has no output, SecondOutput
       Name: !GetAtt FirstSubStack.Outputs.SecondOutput
+
+  ThirdSubStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SecondSubStack
+    Properties:
+      # This should cause an error, this file doesn't exist
+      TemplateURL: subfolder/nonexistant_substack.yml

@@ -40,6 +40,7 @@ interface LocalReferenceables {
 interface SubStackReferenceables {
   outputs: string[];
   parameters: SubStackParameterReferenceablesMap;
+  invalidStackReferenceDiagnostics: vscode.Diagnostic[];
 }
 
 interface SubStackParameterReferenceablesMap {
@@ -94,24 +95,22 @@ export class CloudformationYaml {
         const subStackNodePairs = this.findSubStackNodePairs(document);
         const rootFilePath = editor.document.fileName;
         const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
-        const subStackReferenceables = this.getSubStackReferenceables(subStackNodePairs, parentPath);
+        const subStackReferenceables = this.getSubStackReferenceables(text, subStackNodePairs, parentPath);
         const subStackAttributeReferencingNodes = this.getNodesWhichReferenceSubstackAttributes(document);
         const invalidSubStacAttributeReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(text, subStackReferenceables.outputs, subStackAttributeReferencingNodes);
 
         // Check parameters in sub stacks to make sure they can be referenced
         const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(text, subStackReferenceables, subStackNodePairs);
 
-        // TODO: what if template URL references a file that doesn't exist?
-
         const combinedDiagnostics =
-          invalidSubStackParameterDiagnostics
-            .concat(invalidSubStacAttributeReferenceDiagnostics
-              .concat(invalidLocalResourceReferenceDiagnostics));
+          subStackReferenceables.invalidStackReferenceDiagnostics
+            .concat(invalidSubStackParameterDiagnostics)
+            .concat(invalidSubStacAttributeReferenceDiagnostics)
+            .concat(invalidLocalResourceReferenceDiagnostics);
 
         this.diagnosticCollection.clear();
         this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
 
-        console.log(`diagnostics set`);
       }
     } catch (error) {
       console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
@@ -191,7 +190,6 @@ export class CloudformationYaml {
 
       // Now that that's done, let's look at the parameters which were not referenced
       // Some might have default values, and that's fine, but a warning might be helpful
-      console.log(`referenceableParameters: ${JSON.stringify(referenceableParameters)}`);
       if (referenceableParameters.length > 0) {
         const propertiesPair = this.getNodeItemByStringKey(properties, 'Parameters');
         if (!propertiesPair) return;
@@ -205,7 +203,7 @@ export class CloudformationYaml {
         referenceableParameters.forEach((referenceableParameter) => {
           const message = referenceableParameter.hasDefault
             ? `Properties missing value for parameter with default value, '${referenceableParameter.parameterName}'`
-            : `Properties missing value for required parameter, '${referenceableParameter.parameterName}'`
+            : `Properties missing value for required parameter, '${referenceableParameter.parameterName}'`;
           const severity = referenceableParameter.hasDefault
             ? vscode.DiagnosticSeverity.Warning
             : vscode.DiagnosticSeverity.Error;
@@ -217,19 +215,39 @@ export class CloudformationYaml {
     return subStackParameterDiagnostics;
   }
 
-  private getSubStackReferenceables(nodePairs: any[], parentPath: string): SubStackReferenceables {
+  private getSubStackReferenceables(fullText: string, subStackNodePairs: Node[], parentPath: string): SubStackReferenceables {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStackParameterReferenceablesMap = {};
-    nodePairs.forEach((nodePair) => {
+    const invalidStackReferenceDiagnostics: vscode.Diagnostic[] = [];
+    subStackNodePairs.forEach((nodePair) => {
       const properties = nodePair.value.get('Properties');
       if (properties) {
         const templateUrl = properties.get('TemplateURL');
         referenceableParameters[templateUrl] = [];
         if (templateUrl) {
           const filePath = `${parentPath}/${templateUrl}`;
-          const fileText = fs.readFileSync(filePath, 'utf8');
-          const document: any = YAML.parseDocument(fileText, { keepCstNodes: true });
-
+          let document: any;
+          try {
+            const fileText = fs.readFileSync(filePath, 'utf8');
+            document = YAML.parseDocument(fileText, { keepCstNodes: true });
+          } catch (error) {
+            const templateUrlNodePair = this.getNodeItemByStringKey(properties, 'TemplateURL');
+            if (!templateUrlNodePair) return;
+            const position = this.getRowColumnPosition(fullText, templateUrlNodePair.value.range[0]);
+            const range = new vscode.Range(
+              position.line,
+              position.column,
+              position.line,
+              position.column + templateUrlNodePair.value.value.length,
+            );
+            const diagnostic = new vscode.Diagnostic(
+              range,
+              `Unable to load or parse template file, '${filePath}'. Error encountered: ${JSON.stringify(revealAllProperties(error), null, 2)}`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            invalidStackReferenceDiagnostics.push(diagnostic);
+            return;
+          }
           const outputs = document.contents.get('Outputs');
           const outputKeys = this.getYamlNodeKeys(outputs);
           outputKeys.forEach((key) => {
@@ -248,11 +266,14 @@ export class CloudformationYaml {
               }
             });
           }
-          console.log(`paremters`);
         }
       }
     });
-    return { outputs: referenceableOutputs, parameters: referenceableParameters };
+    return {
+      invalidStackReferenceDiagnostics,
+      outputs: referenceableOutputs,
+      parameters: referenceableParameters,
+    };
   }
 
   private getNodesWhichReferenceSubstackAttributes(document: any) {
