@@ -38,6 +38,7 @@
     "lint": "tslint src/**/*.ts --fix"
   },
   "devDependencies": {
+    "@types/assert": "^1.4.2",
     "@types/lodash.clone": "^4.5.6",
     "@types/lodash.clonedeep": "^4.5.6",
     "@types/lodash.get": "^4.4.6",

@@ -110,7 +110,7 @@ export class CloudformationYaml {
 
         this.diagnosticCollection.clear();
         this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
-
+        return combinedDiagnostics;
       }
     } catch (error) {
       console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
