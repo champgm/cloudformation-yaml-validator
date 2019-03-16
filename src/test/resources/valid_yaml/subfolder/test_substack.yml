@@ -10,17 +10,12 @@ Parameters:
   SecondParameter:
     Description: A parameter
     Type: String
-    Default: "SecondParameter default value"
 
   ThirdParameter:
-    Description: A parameter
-    Type: String
-
-  FourthParameter:
     Description: A parameter
     Type: String
 
 Outputs:
   FirstOutput:
     Description: !Ref FirstParameter
-    Value: !Sub "${SecondParameter}-${ThirdParameter}-${FourthParameter}"
+    Value: !Sub "${SecondParameter}-${ThirdParameter}-asdf"

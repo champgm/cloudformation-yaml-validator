@@ -19,20 +19,54 @@ suite('Extension Integration Tests', () => {
   test('Finds no diagnostics given valid yaml files', async () => {
     const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/valid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
-    const editor = await vscode.window.showTextDocument(document);
-    const diagnostics = await getDiagnostics(uri);
-    assert.deepEqual(diagnostics.length, 0, 'Diagnostics array should be empty');
+    await vscode.window.showTextDocument(document);
+    await checkDiagnosticsUntilExpectedLength(uri, 0, 5000);
+    const diagnostics = vscode.languages.getDiagnostics(uri);
+    assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
+    vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
 
   test('Finds diagnostics given invalid yaml files', async () => {
     const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/invalid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
-    const editor = await vscode.window.showTextDocument(document);
-    const diagnostics = await getDiagnostics(uri);
-    console.log(`DIAGNOSTCS: ${JSON.stringify(diagnostics)}`);
-    assert.deepEqual(diagnostics.length, 5, 'Diagnostics array should be empty');
+    await vscode.window.showTextDocument(document);
+    await checkDiagnosticsUntilExpectedLength(uri, 12, 5000);
+    const diagnostics = vscode.languages.getDiagnostics(uri);
+    assert.deepEqual(diagnostics.length, 12, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
+    vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
 });
+
+async function checkDiagnosticsUntilExpectedLength(uri: vscode.Uri, expectedLength: number, timeout: number) {
+  let totalTime = 0;
+  while (totalTime < timeout) {
+    const diagnostics = vscode.languages.getDiagnostics(uri);
+    if (diagnostics.length === expectedLength) {
+      return;
+    }
+    totalTime += 200;
+    await sleep(200);
+  }
+}
+
+async function assertUntilTrue(assertion: () => void, timeout: number) {
+  let totalTime = 0;
+  while (totalTime < timeout) {
+    const error = returnError(assertion);
+    if (!error) return;
+    totalTime += 1000;
+    await sleep(1000);
+  }
+  assertion();
+}
+
+function returnError(mightThrow: () => void) {
+  try {
+    mightThrow();
+  } catch (error) {
+    return error;
+  }
+}
 
 function getDiagnostics(uri: Uri): Promise<Diagnostic[]> {
   return new Promise(async (resolve, reject) => {
