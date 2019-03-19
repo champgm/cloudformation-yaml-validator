@@ -40,24 +40,15 @@ suite('Extension Integration Tests', () => {
 async function checkDiagnosticsUntilExpectedLength(uri: vscode.Uri, expectedLength: number, timeout: number) {
   let totalTime = 0;
   while (totalTime < timeout) {
+    console.log(`Getting diagnostics for URI: ${JSON.stringify(uri)}`);
     const diagnostics = vscode.languages.getDiagnostics(uri);
     if (diagnostics.length === expectedLength) {
       return;
     }
+    console.log(`Diagnostics length, '${diagnostics.length}', did not equal expected length, '${expectedLength}', trying again...`);
     totalTime += 200;
     await sleep(200);
   }
-}
-
-async function assertUntilTrue(assertion: () => void, timeout: number) {
-  let totalTime = 0;
-  while (totalTime < timeout) {
-    const error = returnError(assertion);
-    if (!error) return;
-    totalTime += 1000;
-    await sleep(1000);
-  }
-  assertion();
 }
 
 function returnError(mightThrow: () => void) {

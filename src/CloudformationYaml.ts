@@ -95,6 +95,7 @@ export class CloudformationYaml {
     if (subscriptions.indexOf(this) < 0) {
       subscriptions.push(this);
     }
+    vscode.window.onDidChangeActiveTextEditor(this.checkYaml, this, subscriptions);
     vscode.workspace.onDidOpenTextDocument(this.checkYaml, this, subscriptions);
     vscode.workspace.onDidCloseTextDocument((textDocument) => { this.diagnosticCollection.delete(textDocument.uri); }, null, subscriptions);
     vscode.workspace.onDidSaveTextDocument(this.checkYaml, this, subscriptions);
@@ -104,7 +105,7 @@ export class CloudformationYaml {
   public checkYaml() {
     try {
       const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
-      if (get(editor, 'document.languageId') === 'yaml') {
+      if (editor) {
         const fullText = editor.document.getText();
         const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
@@ -114,17 +115,19 @@ export class CloudformationYaml {
         const invalidReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(fullText, referenceables, nodesWhichReference);
 
         // Check parameters in sub stacks to make sure they can be referenced
-        const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(fullText, subStackReferenceables, subStackNodePairs);
+        const subStackNodePairs = this.findSubStackNodePairs(document);
+        const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(fullText, referenceables.subStackReferenceables, subStackNodePairs);
 
-        // const combinedDiagnostics =
-        //   subStackReferenceables.invalidStackReferenceDiagnostics
-        //     .concat(invalidSubStackParameterDiagnostics)
-        //     .concat(invalidReferenceDiagnostics)
-        //     .concat(invalidLocalResourceReferenceDiagnostics);
+        const combinedDiagnostics = [
+          ...invalidReferenceDiagnostics,
+          ...invalidSubStackParameterDiagnostics,
+          ...referenceables.subStackReferenceables.invalidStackReferenceDiagnostics,
+        ];
 
         // this.diagnosticCollection.clear();
-        // this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
-        // return combinedDiagnostics;
+        console.log(`Setting diagnostics for URI: ${JSON.stringify(editor.document.uri)}`);
+        this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
+        return combinedDiagnostics;
       }
     } catch (error) {
       console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
@@ -315,14 +318,13 @@ export class CloudformationYaml {
     return new vscode.Diagnostic(range, message, severity);
   }
 
-
-  private static asdf: { [referenceType: string]: (key: string) => string } = {
-    [ReferenceTypes.IF]: (key) => `Unable to find referenced condition, '${key}'`,
-    [ReferenceTypes.DEPENDS_ON]: (key) => `Unable to find referenced resource, '${key}'`,
-    [ReferenceTypes.FIND_IN_MAP]: (key) => `Unable to find referenced map, '${key}'`,
-    [ReferenceTypes.REF]: (key) => `Unable to find referenced value, '${key}'`,
-    [ReferenceTypes.SUB]: (key) => `Unable to find referenced value, '${key}'`,
-    [ReferenceTypes.GET_ATT]: (key) => 'asdf',
+  public static referenceTypeToDiagnosticMessageMap: { [referenceType: string]: (key: string) => string } = {
+    [ReferenceTypes.DEPENDS_ON]: key => `Unable to find referenced resource, '${key}'`,
+    [ReferenceTypes.FIND_IN_MAP]: key => `Unable to find referenced map, '${key}'`,
+    [ReferenceTypes.GET_ATT]: key => `Unable to find referenced sub stack output, '${key}'`,
+    [ReferenceTypes.IF]: key => `Unable to find referenced condition, '${key}'`,
+    [ReferenceTypes.REF]: key => `Unable to find referenced value, '${key}'`,
+    [ReferenceTypes.SUB]: key => `Unable to find referenced value, '${key}'`,
   }
   private buildInvalidReferenceDiagnostics(
     fullText: string,
@@ -337,35 +339,22 @@ export class CloudformationYaml {
     nodesWhichReference.forEach((node) => {
       node.references.forEach((reference) => {
         const position = getRowColumnPosition(fullText, reference.absoluteKeyPosition);
-        switch (reference.type) {
-          case ReferenceTypes.NO_TAG:
-          case ReferenceTypes.REF:
-          case ReferenceTypes.SUB:
-            if (localReferenceables.indexOf(reference.referencedKey) < 0) {
-              const diagnostic = this.createDiagnostic(
-                position,
-                reference.referencedKey.length,
-                vscode.DiagnosticSeverity.Error,
-                `Unable to find referenced local value, '${reference.referencedKey}'`,
-              );
-              invalidReferences.push(diagnostic);
-            }
-            break;
-          case ReferenceTypes.GET_ATT:
-            if (referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0) {
-              const diagnostic = this.createDiagnostic(
-                position,
-                reference.referencedKey.length,
-                vscode.DiagnosticSeverity.Error,
-                `Unable to find referenced local value, '${reference.referencedKey}'`,
-              );
-              invalidReferences.push(diagnostic);
-            }
-            break;
-          default:
-            break;
+        const message = CloudformationYaml.referenceTypeToDiagnosticMessageMap[reference.type](reference.referencedKey);
+        const diagnostic = this.createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
+
+        // If it's a !GetAtt reference, check the sub-stack outputs and no other referenceables
+        if (reference.type === ReferenceTypes.GET_ATT) {
+          if (referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0) {
+            invalidReferences.push(diagnostic);
+          }
+          return;
         }
 
+        // Otherwise, check local referenceables
+        if (localReferenceables.indexOf(reference.referencedKey) < 0) {
+          invalidReferences.push(diagnostic);
+          return;
+        }
       });
     });
     return invalidReferences;
@@ -382,7 +371,7 @@ export class CloudformationYaml {
     '!If': ReferenceTypes.IF,
     '!FindInMap': ReferenceTypes.FIND_IN_MAP,
     DependsOn: ReferenceTypes.DEPENDS_ON,
-  }
+  };
   private getSubNodesWhichReference(node: Node): Node[] {
     if (!node) return [];
     const nodeValue = this.getNodeValueIfPair(node);
@@ -483,27 +472,42 @@ export class CloudformationYaml {
   }
 
   private getReferenceables(editor: any): Referenceables {
-    const document = editor.document;
+    // const document = editor.document;
     const fullText = editor.document.getText();
+    const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
     // Get local referenceables, these are just keys of various top-level sections
-    const parameters = document.get('Parameters');
-    const resources = document.get('Resources');
-    const conditions = document.get('Conditions');
-    const mappings = document.get('Mappings');
+    if (document.contents) {
+      const contents = document.contents as Node;
+      const parameters = contents.get('Parameters');
+      const resources = contents.get('Resources');
+      const conditions = contents.get('Conditions');
+      const mappings = contents.get('Mappings');
 
-    // Find sub stack referenceables, this will require work.
-    const subStackNodePairs = this.findSubStackNodePairs(document);
-    const rootFilePath = editor.document.fileName;
-    const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
-    const subStackReferenceables = this.getSubStackReferenceables(fullText, subStackNodePairs, parentPath);
+      // Find sub stack referenceables, this will require work.
+      const subStackNodePairs = this.findSubStackNodePairs(document);
+      const rootFilePath = editor.document.fileName;
+      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
+      const subStackReferenceables = this.getSubStackReferenceables(fullText, subStackNodePairs, parentPath);
 
+      return {
+        subStackReferenceables,
+        parameters: this.getYamlNodeKeys(parameters),
+        resources: this.getYamlNodeKeys(resources),
+        mappings: this.getYamlNodeKeys(mappings),
+        conditions: this.getYamlNodeKeys(conditions),
+      };
+    }
     return {
-      subStackReferenceables,
-      parameters: this.getYamlNodeKeys(parameters),
-      resources: this.getYamlNodeKeys(resources),
-      mappings: this.getYamlNodeKeys(mappings),
-      conditions: this.getYamlNodeKeys(conditions),
+      parameters: [],
+      resources: [],
+      mappings: [],
+      conditions: [],
+      subStackReferenceables: {
+        outputs: [],
+        parameters: {},
+        invalidStackReferenceDiagnostics: [],
+      },
     };
   }
 
