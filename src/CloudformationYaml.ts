@@ -66,7 +66,6 @@ interface Referenceables {
 interface SubStackReferenceables {
   outputs: string[];
   parameters: SubStackParameterReferenceablesMap;
-  invalidStackReferenceDiagnostics: vscode.Diagnostic[];
 }
 
 interface SubStackParameterReferenceablesMap {
@@ -106,33 +105,29 @@ export class CloudformationYaml {
     try {
       const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
       if (editor) {
+        const documentUri = editor.document.uri;
+        this.diagnosticCollection.delete(documentUri);
         const fullText = editor.document.getText();
         const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
         // Check all !Ref and !Sub tags
-        const referenceables = this.getReferenceables(editor);
+        const referenceables = this.getReferenceables(documentUri, editor);
         const nodesWhichReference = this.getNodesWhichReference(document);
-        const invalidReferenceDiagnostics = this.buildInvalidReferenceDiagnostics(fullText, referenceables, nodesWhichReference);
+        this.buildInvalidReferenceDiagnostics(fullText, documentUri, referenceables, nodesWhichReference);
 
         // Check parameters in sub stacks to make sure they can be referenced
         const subStackNodePairs = this.findSubStackNodePairs(document);
-        const invalidSubStackParameterDiagnostics = this.buildInvalidSubStackParameterDiagnostics(fullText, referenceables.subStackReferenceables, subStackNodePairs);
-
-        const combinedDiagnostics = [
-          ...invalidReferenceDiagnostics,
-          ...invalidSubStackParameterDiagnostics,
-          ...referenceables.subStackReferenceables.invalidStackReferenceDiagnostics,
-        ];
-
-        // this.diagnosticCollection.clear();
-        console.log(`Setting diagnostics for URI: ${JSON.stringify(editor.document.uri)}`);
-        this.diagnosticCollection.set(editor.document.uri, combinedDiagnostics);
-        return combinedDiagnostics;
+        this.buildInvalidSubStackParameterDiagnostics(fullText, documentUri, referenceables.subStackReferenceables, subStackNodePairs);
       }
     } catch (error) {
-      console.log(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
-      vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
+      console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
+      // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     }
+  }
+
+  private addDiagnostic(uri: vscode.Uri, newDiagnostic: vscode.Diagnostic) {
+    const existingDiagnostics = this.diagnosticCollection.get(uri) || [];
+    this.diagnosticCollection.set(uri, [...existingDiagnostics, newDiagnostic]);
   }
 
   private findSubStackNodePairs(document: any) {
@@ -161,7 +156,12 @@ export class CloudformationYaml {
     return [];
   }
 
-  private buildInvalidSubStackParameterDiagnostics(fullText: string, subStackReferenceables: SubStackReferenceables, subStackNodePairs: Node[]): vscode.Diagnostic[] {
+  private buildInvalidSubStackParameterDiagnostics(
+    fullText: string,
+    documentUri: vscode.Uri,
+    subStackReferenceables: SubStackReferenceables,
+    subStackNodePairs: Node[],
+  ): void {
     const subStackParameterDiagnostics: vscode.Diagnostic[] = [];
     subStackNodePairs.forEach((subStackNodePair) => {
       const subStackNodeValue = subStackNodePair.value;
@@ -192,7 +192,7 @@ export class CloudformationYaml {
               vscode.DiagnosticSeverity.Error,
               `Referenced file does not have parameter, '${parameterPair.stringKey}'`,
             );
-            subStackParameterDiagnostics.push(diagnostic);
+            this.addDiagnostic(documentUri, diagnostic);
           }
         });
 
@@ -210,18 +210,21 @@ export class CloudformationYaml {
               ? vscode.DiagnosticSeverity.Warning
               : vscode.DiagnosticSeverity.Error;
             const diagnostic = this.createDiagnostic(propertiesPosition, 'Properties'.length, severity, message);
-            subStackParameterDiagnostics.push(diagnostic);
+            this.addDiagnostic(documentUri, diagnostic);
           });
         }
       }
     });
-    return subStackParameterDiagnostics;
   }
 
-  private getSubStackReferenceables(fullText: string, subStackNodePairs: Node[], parentPath: string): SubStackReferenceables {
+  private getSubStackReferenceables(
+    fullText: string,
+    documentUri: vscode.Uri,
+    subStackNodePairs: Node[],
+    parentPath: string,
+  ): SubStackReferenceables {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStackParameterReferenceablesMap = {};
-    const invalidStackReferenceDiagnostics: vscode.Diagnostic[] = [];
     subStackNodePairs.forEach((nodePair) => {
       const properties = (nodePair.value as Node).get('Properties') as Node;
       const templateUrl = (properties as Node).get('TemplateURL');
@@ -244,7 +247,7 @@ export class CloudformationYaml {
             vscode.DiagnosticSeverity.Error,
             `Unable to load or parse template file, '${filePath}'. Error encountered: ${JSON.stringify(revealAllProperties(error), null, 2)}`,
           );
-          invalidStackReferenceDiagnostics.push(diagnostic);
+          this.addDiagnostic(documentUri, diagnostic);
           return;
         }
         const outputs = document.contents.get('Outputs');
@@ -268,50 +271,10 @@ export class CloudformationYaml {
       }
     });
     return {
-      invalidStackReferenceDiagnostics,
       outputs: referenceableOutputs,
       parameters: referenceableParameters,
     };
   }
-
-  // private getNodesWhichReferenceSubstackAttributes(document: any) {
-  //   const resources = document.get('Resources');
-  //   const outputs = document.get('Outputs');
-  //   return this.getSubNodesWhichReferenceSubstackAttributes(resources)
-  //     .concat(this.getSubNodesWhichReferenceSubstackAttributes(outputs));
-  // }
-
-  // private getSubNodesWhichReferenceSubstackAttributes(node: Node): Node[] {
-  //   if (!node) return [];
-  //   const nodeValue = this.getNodeValueIfPair(node);
-  //   if (nodeValue) {
-  //     if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
-  //       const subNodes = nodeValue.items.map((item) => {
-  //         if (!item.tag) {
-  //           item.tag = nodeValue.tag;
-  //         }
-  //         return this.getSubNodesWhichReferenceSubstackAttributes(item);
-  //       });
-  //       return flattenArray(subNodes);
-  //     }
-
-  //     if (nodeValue.type === NodeTypes.PLAIN || nodeValue.type === NodeTypes.QUOTE_DOUBLE) {
-  //       // Handle nodes with a !Ref tag
-  //       if (nodeValue.tag === '!GetAtt') {
-  //         nodeValue.references = [{
-  //           referencedKey: nodeValue.value,
-  //           // Add 7 because '!GetAtt ' is 7 and the range begins at the beginning of the field
-  //           // Add 1 because... I still don't know why, see !Sub, similar issue.
-  //           // Hey maybe it's counting the space between ':' and '!GetAtt' ?
-  //           // I'm sure it has nothing to do with getRowColumnPosition's logic ^_^
-  //           absoluteKeyPosition: nodeValue.range[0] + 7 + 1,
-  //         }];
-  //         return [nodeValue];
-  //       }
-  //     }
-  //   }
-  //   return [];
-  // }
 
   private createDiagnostic(position: RowColumnPosition, length: number, severity: vscode.DiagnosticSeverity, message: string) {
     const range = new vscode.Range(position.line, position.column, position.line, position.column + length);
@@ -325,17 +288,18 @@ export class CloudformationYaml {
     [ReferenceTypes.IF]: key => `Unable to find referenced condition, '${key}'`,
     [ReferenceTypes.REF]: key => `Unable to find referenced value, '${key}'`,
     [ReferenceTypes.SUB]: key => `Unable to find referenced value, '${key}'`,
-  }
+  };
   private buildInvalidReferenceDiagnostics(
     fullText: string,
+    documentUri: vscode.Uri,
     referenceables: Referenceables,
     nodesWhichReference: Node[],
-  ): vscode.Diagnostic[] {
+  ): void {
     const invalidReferences: vscode.Diagnostic[] = [];
     const localReferenceables = referenceables.conditions
       .concat(referenceables.mappings)
       .concat(referenceables.parameters)
-      .concat(referenceables.resources)
+      .concat(referenceables.resources);
     nodesWhichReference.forEach((node) => {
       node.references.forEach((reference) => {
         const position = getRowColumnPosition(fullText, reference.absoluteKeyPosition);
@@ -345,19 +309,18 @@ export class CloudformationYaml {
         // If it's a !GetAtt reference, check the sub-stack outputs and no other referenceables
         if (reference.type === ReferenceTypes.GET_ATT) {
           if (referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0) {
-            invalidReferences.push(diagnostic);
+            this.addDiagnostic(documentUri, diagnostic);
           }
           return;
         }
 
         // Otherwise, check local referenceables
         if (localReferenceables.indexOf(reference.referencedKey) < 0) {
-          invalidReferences.push(diagnostic);
+          this.addDiagnostic(documentUri, diagnostic);
           return;
         }
       });
     });
-    return invalidReferences;
   }
 
   private getNodesWhichReference(document: any) {
@@ -454,7 +417,7 @@ export class CloudformationYaml {
     get: () => { return CloudformationYaml.EMPTY_NODE; },
     comment: '',
     commentBefore: '',
-    toJSON: () => { return '{}' },
+    toJSON: () => { return '{}'; },
     key: CloudformationYaml.EMPTY_NODE,
   };
   private getNodeValueIfPair(node: Node): Node {
@@ -471,8 +434,7 @@ export class CloudformationYaml {
     return item ? item : CloudformationYaml.EMPTY_NODE;
   }
 
-  private getReferenceables(editor: any): Referenceables {
-    // const document = editor.document;
+  private getReferenceables(documentUri: vscode.Uri, editor: any): Referenceables {
     const fullText = editor.document.getText();
     const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
@@ -488,7 +450,7 @@ export class CloudformationYaml {
       const subStackNodePairs = this.findSubStackNodePairs(document);
       const rootFilePath = editor.document.fileName;
       const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
-      const subStackReferenceables = this.getSubStackReferenceables(fullText, subStackNodePairs, parentPath);
+      const subStackReferenceables = this.getSubStackReferenceables(fullText, documentUri, subStackNodePairs, parentPath);
 
       return {
         subStackReferenceables,
@@ -506,7 +468,6 @@ export class CloudformationYaml {
       subStackReferenceables: {
         outputs: [],
         parameters: {},
-        invalidStackReferenceDiagnostics: [],
       },
     };
   }

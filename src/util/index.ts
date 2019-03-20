@@ -6,6 +6,7 @@ export function revealAllProperties(object: any): any {
 
   do {
     objectReferences.unshift(object);
+// tslint:disable-next-line: no-parameter-reassignment
   } while (object = Object.getPrototypeOf(object));
 
   const enumeratedObject: any = {};
