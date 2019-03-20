@@ -1,81 +1,17 @@
-import fs from 'fs';
 import * as vscode from 'vscode';
-
-import YAML from 'yaml';
-import get from 'lodash.get';
 import clone from 'lodash.clonedeep';
-import { revealAllProperties, flattenArray, getRowColumnPosition } from './util';
-import { RowColumnPosition } from './common/interfaces';
+import fs from 'fs';
+import get from 'lodash.get';
+import YAML from 'yaml';
 
-interface Reference {
-  type: ReferenceTypes;
-  absoluteKeyPosition: number;
-  referencedKey: string;
-}
-
-enum ReferenceTypes {
-  REF = 'REF',
-  SUB = 'SUB',
-  GET_ATT = 'GET_ATT',
-  IF = 'IF',
-  DEPENDS_ON = 'DEPENDS',
-  FIND_IN_MAP = 'FIND_IN_MAP',
-}
-
-enum NodeTypes {
-  MAP = 'MAP',
-  PAIR = 'PAIR',
-  PLAIN = 'PLAIN',
-  FLOW_SEQ = 'FLOW_SEQ',
-  QUOTE_DOUBLE = 'QUOTE_DOUBLE',
-  EMPTY = 'EMPTY',
-}
-
-type Node = YAML.ast.Node & {
-  type: NodeTypes;
-  key: Node;
-  items: Node[];
-  stringKey?: string;
-  get: (key: string) => Node | string;
-  value?: Node | string;
-  range: number[];
-  references: Reference[];
-};
-
-interface Node2 {
-  type: NodeTypes;
-  items: Node[];
-  range: number[];
-  references: Reference[];
-  tag: string;
-  has?: (key: string) => boolean;
-  get: (key: string) => Node | string;
-  value?: Node;
-  stringKey?: string;
-  // [key: string]: any;
-}
-
-interface Referenceables {
-  conditions: string[];
-  mappings: string[];
-  parameters: string[];
-  resources: string[];
-  subStackReferenceables: SubStackReferenceables;
-}
-
-interface SubStackReferenceables {
-  outputs: string[];
-  parameters: SubStackParameterReferenceablesMap;
-}
-
-interface SubStackParameterReferenceablesMap {
-  [templateUrl: string]: SubStackParameterReferenceable[];
-}
-
-interface SubStackParameterReferenceable {
-  parameterName: string;
-  hasDefault: boolean;
-}
+import { Node } from './interfaces/Node';
+import { NodeTypes } from './common/NodeTypes';
+import { Referenceables } from './interfaces/Referenceables';
+import { ReferenceTypes } from './common/ReferenceTypes';
+import { revealAllProperties, flattenArray, getRowColumnPosition } from './common';
+import { RowColumnPosition } from './interfaces/RowColumnPosition';
+import { SubStackParameterReferenceablesMap } from './interfaces/SubStackParameterReferenceablesMap';
+import { SubStackReferenceables } from './interfaces/SubStackReferenceables';
 
 export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
@@ -120,7 +56,7 @@ export class CloudformationYaml {
         this.buildInvalidSubStackParameterDiagnostics(fullText, documentUri, referenceables.subStackReferenceables, subStackNodePairs);
       }
     } catch (error) {
-      console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error), null, 2)}`);
+      console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
       // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     }
   }
@@ -245,7 +181,7 @@ export class CloudformationYaml {
             position,
             templateUrl.length,
             vscode.DiagnosticSeverity.Error,
-            `Unable to load or parse template file, '${filePath}'. Error encountered: ${JSON.stringify(revealAllProperties(error), null, 2)}`,
+            `Unable to load or parse template file, '${filePath}'. Error encountered: ${JSON.stringify(revealAllProperties(error))}`,
           );
           this.addDiagnostic(documentUri, diagnostic);
           return;
@@ -295,7 +231,6 @@ export class CloudformationYaml {
     referenceables: Referenceables,
     nodesWhichReference: Node[],
   ): void {
-    const invalidReferences: vscode.Diagnostic[] = [];
     const localReferenceables = referenceables.conditions
       .concat(referenceables.mappings)
       .concat(referenceables.parameters)
@@ -335,6 +270,7 @@ export class CloudformationYaml {
     '!FindInMap': ReferenceTypes.FIND_IN_MAP,
     DependsOn: ReferenceTypes.DEPENDS_ON,
   };
+  public static nodeTypeToSubOffsetMap = { PLAIN: 0, QUOTE_DOUBLE: 1 };
   private getSubNodesWhichReference(node: Node): Node[] {
     if (!node) return [];
     const nodeValue = this.getNodeValueIfPair(node);
@@ -392,13 +328,17 @@ export class CloudformationYaml {
         while ((match = (regEx.exec(nodeValue.value as string) as RegExpExecArray)) != null) {
           // Trim the ${} off of the match
           const referencedKey = match[0].substring(2, match[0].length - 1);
+          const quotesOffset = CloudformationYaml.nodeTypeToSubOffsetMap[nodeValue.type];
+          if (quotesOffset !== 0 && quotesOffset !== 1) {
+            console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
+          }
           const reference = {
             referencedKey,
             type: ReferenceTypes.SUB,
             // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
             // Add 2 because we've trimmed off '${'
-            // Add 1 because !Sub values always start with "
-            absoluteKeyPosition: nodeValue.range[0] + 5 + 1 + 2 + match.index,
+            // Add an offset for quotes (or not)
+            absoluteKeyPosition: nodeValue.range[0] + 5 + quotesOffset + 2 + match.index,
           };
           nodeValue.references.push(reference);
         }

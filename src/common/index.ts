@@ -1,12 +1,13 @@
+import vscode from 'vscode';
 import clone from 'lodash.clone';
-import { RowColumnPosition } from '../common/interfaces';
+import { RowColumnPosition } from '../interfaces/RowColumnPosition';
 
 export function revealAllProperties(object: any): any {
   const objectReferences: any[] = [];
 
   do {
     objectReferences.unshift(object);
-// tslint:disable-next-line: no-parameter-reassignment
+    // tslint:disable-next-line: no-parameter-reassignment
   } while (object = Object.getPrototypeOf(object));
 
   const enumeratedObject: any = {};
@@ -22,6 +23,15 @@ export function revealAllProperties(object: any): any {
 export function flattenArray(input: any[][]): any[] {
   const empty: any[] = [];
   return empty.concat.apply([], input);
+}
+
+export function createVsCodeRange(rowColumnPosition: RowColumnPosition, rangeLength: number): vscode.Range {
+  return new vscode.Range(
+    rowColumnPosition.line,
+    rowColumnPosition.column,
+    rowColumnPosition.line,
+    rowColumnPosition.column + rangeLength,
+  );
 }
 
 export function getRowColumnPosition(text: string, absolutePosition: number): RowColumnPosition {
