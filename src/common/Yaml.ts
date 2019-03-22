@@ -1,4 +1,5 @@
 import get from 'lodash.get';
+
 import { Node } from '../interfaces/Node';
 import { NodeTypes } from './NodeTypes';
 

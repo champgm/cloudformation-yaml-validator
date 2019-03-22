@@ -4,6 +4,9 @@ import fs from 'fs';
 import get from 'lodash.get';
 import YAML from 'yaml';
 
+import { createDiagnostic } from './common/Diagnostics';
+import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey } from './common/Yaml';
+import { Maps } from './common/Maps';
 import { Node } from './interfaces/Node';
 import { NodeTypes } from './common/NodeTypes';
 import { Referenceables } from './interfaces/Referenceables';
@@ -11,9 +14,6 @@ import { ReferenceTypes } from './common/ReferenceTypes';
 import { revealAllProperties, flattenArray, getRowColumnPosition } from './common';
 import { SubStackParameterReferenceablesMap } from './interfaces/SubStackParameterReferenceablesMap';
 import { SubStackReferenceables } from './interfaces/SubStackReferenceables';
-import { Maps } from './common/Maps';
-import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey } from './common/Yaml';
-import { createDiagnostic } from './common/Diagnostics';
 
 export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
@@ -256,8 +256,31 @@ export class CloudformationYaml {
   private getSubNodesWhichReference(node: Node): Node[] {
     if (!node) return [];
     const nodeValue = getNodeValueIfPair(node);
-    // If this is an array or map, we need to go deeper.
-    if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
+    // If this is an array, we need to do some tricky stuff.
+    if (nodeValue.type === NodeTypes.FLOW_SEQ && nodeValue.items) {
+      // Clone the array (we're going to modify it) and grab the first node.
+      const items = clone(nodeValue.items);
+      const firstSubNode = items.shift();
+      if (firstSubNode) {
+        // The first node is always (?) a reference to a Map or Conditional
+        // But this first node has nothing to distinguish it as such, so propagate the parent node's tag to it
+        if (!firstSubNode.tag) firstSubNode.tag = nodeValue.tag;
+        const firstSubNodes = this.getSubNodesWhichReference(firstSubNode);
+
+        // Then, handle the rest of the nodes recursively
+        const restOfSubNodes = items.map((item) => {
+          return this.getSubNodesWhichReference(item);
+        });
+
+        return [
+          ...firstSubNodes,
+          ...flattenArray(restOfSubNodes),
+        ];
+      }
+    }
+
+    // If this is a map, we just need to go deeper.
+    if (nodeValue.type === NodeTypes.MAP && nodeValue.items) {
       const subNodes = nodeValue.items.map((item) => {
         if (!item.tag) {
           item.tag = nodeValue.tag;
