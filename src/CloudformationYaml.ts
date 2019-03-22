@@ -4,12 +4,14 @@ import fs from 'fs';
 import get from 'lodash.get';
 import YAML from 'yaml';
 
+import { createDiagnostic } from './common/Diagnostics';
+import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey } from './common/Yaml';
+import { Maps } from './common/Maps';
 import { Node } from './interfaces/Node';
 import { NodeTypes } from './common/NodeTypes';
 import { Referenceables } from './interfaces/Referenceables';
 import { ReferenceTypes } from './common/ReferenceTypes';
 import { revealAllProperties, flattenArray, getRowColumnPosition } from './common';
-import { RowColumnPosition } from './interfaces/RowColumnPosition';
 import { SubStackParameterReferenceablesMap } from './interfaces/SubStackParameterReferenceablesMap';
 import { SubStackReferenceables } from './interfaces/SubStackReferenceables';
 
@@ -79,7 +81,7 @@ export class CloudformationYaml {
 
   private getSubStackNodePairs(node: Node): Node[] {
     if (!node) return [];
-    const nodeValue = this.getNodeValueIfPair(node);
+    const nodeValue = getNodeValueIfPair(node);
     if (nodeValue.type === NodeTypes.MAP && nodeValue.items) {
       if (nodeValue.get('Type') === 'AWS::CloudFormation::Stack') {
         return [node];
@@ -98,16 +100,15 @@ export class CloudformationYaml {
     subStackReferenceables: SubStackReferenceables,
     subStackNodePairs: Node[],
   ): void {
-    const subStackParameterDiagnostics: vscode.Diagnostic[] = [];
     subStackNodePairs.forEach((subStackNodePair) => {
       const subStackNodeValue = subStackNodePair.value;
       if (!subStackNodeValue || typeof subStackNodeValue === 'string') return;
-      const properties = this.getNodeValueIfPair(this.getNodeItemByStringKey(subStackNodeValue, 'Properties'));
+      const properties = getNodeValueIfPair(getNodeItemByStringKey(subStackNodeValue, 'Properties'));
 
       // Get the template URL and matching parameters for the sub stack
       const templateUrl = properties.get('TemplateURL');
       if (typeof templateUrl === 'string') {
-        const parameters = this.getNodeValueIfPair(this.getNodeItemByStringKey(properties, 'Parameters'));
+        const parameters = getNodeValueIfPair(getNodeItemByStringKey(properties, 'Parameters'));
         const referenceableParameters = clone(subStackReferenceables.parameters[templateUrl]);
         // Iterate over each of the current file's parameter references and create diagnostics if necessary
         parameters.items.forEach((parameterPair) => {
@@ -122,7 +123,7 @@ export class CloudformationYaml {
             const keyNode = parameterPair.key;
             const position = getRowColumnPosition(fullText, keyNode.range[0]);
             const stringKey = parameterPair.stringKey as string;
-            const diagnostic = this.createDiagnostic(
+            const diagnostic = createDiagnostic(
               position,
               stringKey.length,
               vscode.DiagnosticSeverity.Error,
@@ -135,7 +136,7 @@ export class CloudformationYaml {
         // Now that that's done, let's look at the parameters which were not referenced
         // Some might have default values, and that's fine, but a warning might be helpful
         if (referenceableParameters.length > 0) {
-          const propertiesPair = this.getNodeItemByStringKey(properties, 'Parameters');
+          const propertiesPair = getNodeItemByStringKey(properties, 'Parameters');
           if (!propertiesPair) return;
           const propertiesPosition = getRowColumnPosition(fullText, propertiesPair.key.range[0]);
           referenceableParameters.forEach((referenceableParameter) => {
@@ -145,7 +146,7 @@ export class CloudformationYaml {
             const severity = referenceableParameter.hasDefault
               ? vscode.DiagnosticSeverity.Warning
               : vscode.DiagnosticSeverity.Error;
-            const diagnostic = this.createDiagnostic(propertiesPosition, 'Properties'.length, severity, message);
+            const diagnostic = createDiagnostic(propertiesPosition, 'Properties'.length, severity, message);
             this.addDiagnostic(documentUri, diagnostic);
           });
         }
@@ -172,12 +173,12 @@ export class CloudformationYaml {
           const fileText = fs.readFileSync(filePath, 'utf8');
           document = YAML.parseDocument(fileText, { keepCstNodes: true });
         } catch (error) {
-          const templateUrlNodePair = this.getNodeItemByStringKey(properties, 'TemplateURL');
+          const templateUrlNodePair = getNodeItemByStringKey(properties, 'TemplateURL');
           if (!templateUrlNodePair) return;
           const templateUrlNodeValue = templateUrlNodePair.value as Node;
           const templateUrl = templateUrlNodeValue.value as string;
           const position = getRowColumnPosition(fullText, templateUrlNodeValue.range[0]);
-          const diagnostic = this.createDiagnostic(
+          const diagnostic = createDiagnostic(
             position,
             templateUrl.length,
             vscode.DiagnosticSeverity.Error,
@@ -187,7 +188,7 @@ export class CloudformationYaml {
           return;
         }
         const outputs = document.contents.get('Outputs');
-        const outputKeys = this.getYamlNodeKeys(outputs);
+        const outputKeys = getYamlNodeKeys(outputs);
         outputKeys.forEach((key) => {
           referenceableOutputs.push(`${nodePair.stringKey}.Outputs.${key}`);
         });
@@ -212,19 +213,6 @@ export class CloudformationYaml {
     };
   }
 
-  private createDiagnostic(position: RowColumnPosition, length: number, severity: vscode.DiagnosticSeverity, message: string) {
-    const range = new vscode.Range(position.line, position.column, position.line, position.column + length);
-    return new vscode.Diagnostic(range, message, severity);
-  }
-
-  public static referenceTypeToDiagnosticMessageMap: { [referenceType: string]: (key: string) => string } = {
-    [ReferenceTypes.DEPENDS_ON]: key => `Unable to find referenced resource, '${key}'`,
-    [ReferenceTypes.FIND_IN_MAP]: key => `Unable to find referenced map, '${key}'`,
-    [ReferenceTypes.GET_ATT]: key => `Unable to find referenced sub stack output, '${key}'`,
-    [ReferenceTypes.IF]: key => `Unable to find referenced condition, '${key}'`,
-    [ReferenceTypes.REF]: key => `Unable to find referenced value, '${key}'`,
-    [ReferenceTypes.SUB]: key => `Unable to find referenced value, '${key}'`,
-  };
   private buildInvalidReferenceDiagnostics(
     fullText: string,
     documentUri: vscode.Uri,
@@ -238,8 +226,8 @@ export class CloudformationYaml {
     nodesWhichReference.forEach((node) => {
       node.references.forEach((reference) => {
         const position = getRowColumnPosition(fullText, reference.absoluteKeyPosition);
-        const message = CloudformationYaml.referenceTypeToDiagnosticMessageMap[reference.type](reference.referencedKey);
-        const diagnostic = this.createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
+        const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
+        const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
 
         // If it's a !GetAtt reference, check the sub-stack outputs and no other referenceables
         if (reference.type === ReferenceTypes.GET_ATT) {
@@ -265,17 +253,34 @@ export class CloudformationYaml {
       .concat(this.getSubNodesWhichReference(outputs));
   }
 
-  public static nodeTagToReferenceTypeMap = {
-    '!If': ReferenceTypes.IF,
-    '!FindInMap': ReferenceTypes.FIND_IN_MAP,
-    DependsOn: ReferenceTypes.DEPENDS_ON,
-  };
-  public static nodeTypeToSubOffsetMap = { PLAIN: 0, QUOTE_DOUBLE: 1 };
   private getSubNodesWhichReference(node: Node): Node[] {
     if (!node) return [];
-    const nodeValue = this.getNodeValueIfPair(node);
-    // If this is an array or map, we need to go deeper.
-    if ((nodeValue.type === NodeTypes.FLOW_SEQ || nodeValue.type === NodeTypes.MAP) && nodeValue.items) {
+    const nodeValue = getNodeValueIfPair(node);
+    // If this is an array, we need to do some tricky stuff.
+    if (nodeValue.type === NodeTypes.FLOW_SEQ && nodeValue.items) {
+      // Clone the array (we're going to modify it) and grab the first node.
+      const items = clone(nodeValue.items);
+      const firstSubNode = items.shift();
+      if (firstSubNode) {
+        // The first node is always (?) a reference to a Map or Conditional
+        // But this first node has nothing to distinguish it as such, so propagate the parent node's tag to it
+        if (!firstSubNode.tag) firstSubNode.tag = nodeValue.tag;
+        const firstSubNodes = this.getSubNodesWhichReference(firstSubNode);
+
+        // Then, handle the rest of the nodes recursively
+        const restOfSubNodes = items.map((item) => {
+          return this.getSubNodesWhichReference(item);
+        });
+
+        return [
+          ...firstSubNodes,
+          ...flattenArray(restOfSubNodes),
+        ];
+      }
+    }
+
+    // If this is a map, we just need to go deeper.
+    if (nodeValue.type === NodeTypes.MAP && nodeValue.items) {
       const subNodes = nodeValue.items.map((item) => {
         if (!item.tag) {
           item.tag = nodeValue.tag;
@@ -291,7 +296,7 @@ export class CloudformationYaml {
       const nodeTag = nodeValue.tag || nodeValue.stringKey;
       if (nodeTag === '!If' || nodeTag === '!FindInMap' || nodeTag === 'DependsOn') {
         nodeValue.references = [{
-          type: CloudformationYaml.nodeTagToReferenceTypeMap[nodeTag],
+          type: Maps.nodeTagToReferenceType[nodeTag],
           referencedKey: nodeValue.value as string,
           absoluteKeyPosition: nodeValue.range[0],
         }];
@@ -328,7 +333,7 @@ export class CloudformationYaml {
         while ((match = (regEx.exec(nodeValue.value as string) as RegExpExecArray)) != null) {
           // Trim the ${} off of the match
           const referencedKey = match[0].substring(2, match[0].length - 1);
-          const quotesOffset = CloudformationYaml.nodeTypeToSubOffsetMap[nodeValue.type];
+          const quotesOffset = Maps.nodeTypeToSubOffset[nodeValue.type];
           if (quotesOffset !== 0 && quotesOffset !== 1) {
             console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
           }
@@ -348,38 +353,12 @@ export class CloudformationYaml {
     return [];
   }
 
-  public static readonly EMPTY_NODE: Node = {
-    type: NodeTypes.EMPTY,
-    items: [],
-    references: [],
-    range: [0, 0],
-    tag: '',
-    get: () => { return CloudformationYaml.EMPTY_NODE; },
-    comment: '',
-    commentBefore: '',
-    toJSON: () => { return '{}'; },
-    key: CloudformationYaml.EMPTY_NODE,
-  };
-  private getNodeValueIfPair(node: Node): Node {
-    if (!node || node.type === NodeTypes.EMPTY) return CloudformationYaml.EMPTY_NODE;
-    const nodeValue = (node.type === NodeTypes.PAIR ? get(node, 'value') : node) as Node;
-    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : node.stringKey;
-    return nodeValue;
-  }
-
-  private getNodeItemByStringKey(node: Node, stringKey: string): Node {
-    const item = node.items.find((nodePair: Node) => {
-      return nodePair.stringKey === stringKey;
-    });
-    return item ? item : CloudformationYaml.EMPTY_NODE;
-  }
-
   private getReferenceables(documentUri: vscode.Uri, editor: any): Referenceables {
     const fullText = editor.document.getText();
     const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
-    // Get local referenceables, these are just keys of various top-level sections
     if (document.contents) {
+      // Get local referenceables, these are just keys of various top-level sections
       const contents = document.contents as Node;
       const parameters = contents.get('Parameters');
       const resources = contents.get('Resources');
@@ -394,10 +373,10 @@ export class CloudformationYaml {
 
       return {
         subStackReferenceables,
-        parameters: this.getYamlNodeKeys(parameters),
-        resources: this.getYamlNodeKeys(resources),
-        mappings: this.getYamlNodeKeys(mappings),
-        conditions: this.getYamlNodeKeys(conditions),
+        parameters: getYamlNodeKeys(parameters),
+        resources: getYamlNodeKeys(resources),
+        mappings: getYamlNodeKeys(mappings),
+        conditions: getYamlNodeKeys(conditions),
       };
     }
     return {
@@ -410,15 +389,6 @@ export class CloudformationYaml {
         parameters: {},
       },
     };
-  }
-
-  private getYamlNodeKeys(yamlNode: any): string[] {
-    if (yamlNode && yamlNode.items) {
-      return yamlNode.items.map((itemNode) => {
-        return itemNode.stringKey;
-      });
-    }
-    return [];
   }
 
   public dispose() {
