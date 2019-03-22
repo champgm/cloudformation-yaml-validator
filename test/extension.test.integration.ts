@@ -14,26 +14,32 @@ import { diagnosticCollectionName } from '../src/CloudformationYaml';
 
 // Defines a Mocha test suite to group tests of similar kind together
 suite('Extension Integration Tests', () => {
+  console.log(`Running Extension Integration Tests`);
   const backToProjectDirectory = '../..';
 
-  test('Finds no diagnostics given valid yaml files', async () => {
-    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
-    const document = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(document);
-    await checkDiagnosticsUntilExpectedLength(uri, 0, 5000);
-    const diagnostics = vscode.languages.getDiagnostics(uri);
-    assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
-    vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+  suite('Valid YAML files', () => {
+    test('Finds no diagnostics given valid yaml files', async () => {
+      const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      await checkDiagnosticsUntilExpectedLength(uri, 0, 5000);
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+      assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
+      vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    });
   });
 
-  test('Finds diagnostics given invalid yaml files', async () => {
-    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
-    const document = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(document);
-    await checkDiagnosticsUntilExpectedLength(uri, 11, 5000);
-    const diagnostics = vscode.languages.getDiagnostics(uri);
-    assert.deepEqual(diagnostics.length, 11, `Diagnostics array should have 12 items: ${JSON.stringify(diagnostics)}`);
-    vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+  suite('Invalid YAML files', () => {
+    test('Finds diagnostics given invalid yaml files', async () => {
+      const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      await checkDiagnosticsUntilExpectedLength(uri, 11, 5000);
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+      assert.deepEqual(diagnostics.length, 11, `Diagnostics array should have 12 items: ${JSON.stringify(diagnostics)}`);
+      vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    });
   });
 });
 

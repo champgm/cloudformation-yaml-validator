@@ -9,6 +9,7 @@ suite('CloudformationYaml Unit Tests', () => {
   const cloudformationYaml: any = new CloudformationYaml();
 
   suite('findSubStackNodePairs', () => {
+    console.log(`Running findSubStackNodePairs tests`);
     test('Finds all sub stack nodes', () => {
       const filePath = `${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`;
       const fileText = fs.readFileSync(filePath, 'utf8');

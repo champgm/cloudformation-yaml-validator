@@ -25,13 +25,15 @@ if (!tty.getWindowSize) {
   };
 }
 
-let mocha = new Mocha({
-  ui: 'tdd',
-  useColors: true,
-});
+// let mocha = new Mocha({
+//   ui: 'tdd',
+//   useColors: true,
+// });
 
+let mochaOptions;
 function configure(mochaOpts: any): void {
-  mocha = new Mocha(mochaOpts);
+  // mocha = new Mocha(mochaOpts);
+  mochaOptions = mochaOpts;
 }
 exports.configure = configure;
 
@@ -64,27 +66,58 @@ function run(testsRoot: string, clb: any): any {
     coverageRunner.setupCoverage();
   }
 
-  // Glob test files
-  glob('**/**.test.js', { cwd: testsRoot }, (error, files): any => {
-    if (error) {
-      return clb(error);
-    }
-    try {
-      // Fill into Mocha
-      files.forEach((f): Mocha => mocha.addFile(paths.join(testsRoot, f)));
-      // Run the tests
-      let failureCount = 0;
-
-      mocha.run()
-        .on('fail', () => failureCount++)
-        .on('end', () => {
-          clb(undefined, failureCount);
-          if (coverageRunner) coverageRunner.reportCoverage();
-        });
-    } catch (error) {
-      return clb(error);
-    }
+  // Do integration tests, but don't collect coverage.
+  console.log(`Run Integration Tests`);
+  const integrationMocha = new Mocha({
+    ui: 'tdd',
+    useColors: true,
   });
+  try {
+    const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
+    // Fill into Mocha
+    integrationTests.forEach((file): Mocha => {
+      console.log(`Adding file to Mocha: ${file}`);
+      return integrationMocha.addFile(paths.join(testsRoot, file));
+    });
+    // Run the tests
+    let failureCount = 0;
+
+    integrationMocha.run()
+      .on('fail', () => failureCount++)
+      .on('end', () => {
+        clb(undefined, failureCount);
+        console.log(`Integration tests are complete`)
+      });
+  } catch (error) {
+    return clb(error);
+  }
+
+  // Do the rest of the test files, and collect coverage
+  console.log(`Run Unit Tests`);
+  const unitMocha = new Mocha({
+    ui: 'tdd',
+    useColors: true,
+  });
+
+  const unitTests = glob.sync('**/**.test.js', { cwd: testsRoot });
+  try {
+    // Fill into Mocha
+    unitTests.forEach((file): Mocha => {
+      console.log(`Adding file to Mocha: ${file}`);
+      return unitMocha.addFile(paths.join(testsRoot, file))
+    });
+    // Run the tests
+    let failureCount = 0;
+
+    unitMocha.run()
+      .on('fail', () => failureCount++)
+      .on('end', () => {
+        clb(undefined, failureCount);
+        if (coverageRunner) coverageRunner.reportCoverage();
+      });
+  } catch (error) {
+    return clb(error);
+  }
 }
 exports.run = run;
 
