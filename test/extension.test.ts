@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import vscode, { Uri, Diagnostic } from 'vscode';
 import path from 'path';
-import { diagnosticCollectionName } from '../CloudformationYaml';
+import { diagnosticCollectionName } from '../src/CloudformationYaml';
 
 // as well as import your extension to test it
 // import * as myExtension from '../extension';
@@ -17,7 +17,7 @@ suite('Extension Integration Tests', () => {
   const backToProjectDirectory = '../..';
 
   test('Finds no diagnostics given valid yaml files', async () => {
-    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/valid_yaml/test.yml`));
+    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document);
     await checkDiagnosticsUntilExpectedLength(uri, 0, 5000);
@@ -27,7 +27,7 @@ suite('Extension Integration Tests', () => {
   });
 
   test('Finds diagnostics given invalid yaml files', async () => {
-    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/invalid_yaml/test.yml`));
+    const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document);
     await checkDiagnosticsUntilExpectedLength(uri, 11, 5000);

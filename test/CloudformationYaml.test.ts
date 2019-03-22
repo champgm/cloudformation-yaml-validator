@@ -2,7 +2,7 @@ import fs from 'fs';
 import YAML from 'yaml';
 import assert from 'assert';
 
-import { CloudformationYaml } from '../CloudformationYaml';
+import { CloudformationYaml } from '../src/CloudformationYaml';
 
 suite('CloudformationYaml Unit Tests', () => {
   const backToProjectDirectory = '../..';
@@ -10,7 +10,7 @@ suite('CloudformationYaml Unit Tests', () => {
 
   suite('findSubStackNodePairs', () => {
     test('Finds all sub stack nodes', () => {
-      const filePath = `${__dirname}/${backToProjectDirectory}/src/test/resources/valid_yaml/test.yml`;
+      const filePath = `${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`;
       const fileText = fs.readFileSync(filePath, 'utf8');
       const document = YAML.parseDocument(fileText, { keepCstNodes: true });
       const subStackNodePairs: any[] = cloudformationYaml.findSubStackNodePairs(document);

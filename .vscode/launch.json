@@ -14,7 +14,7 @@
         "--extensionDevelopmentPath=${workspaceFolder}",
         // "C:\\Users\\mismatch\\github\\project-quest\\services\\connectors"
         // "/Volumes/github/project-quest-3/services/connectors"
-        "${workspaceFolder}/src/test/resources"
+        "${workspaceFolder}/test/resources"
       ],
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
