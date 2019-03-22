@@ -30,9 +30,9 @@ suite('Extension Integration Tests', () => {
     const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/src/test/resources/invalid_yaml/test.yml`));
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document);
-    await checkDiagnosticsUntilExpectedLength(uri, 12, 5000);
+    await checkDiagnosticsUntilExpectedLength(uri, 11, 5000);
     const diagnostics = vscode.languages.getDiagnostics(uri);
-    assert.deepEqual(diagnostics.length, 12, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
+    assert.deepEqual(diagnostics.length, 11, `Diagnostics array should have 12 items: ${JSON.stringify(diagnostics)}`);
     vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
 });
