@@ -14,7 +14,7 @@ export class EmptyNode {
     comment: '',
     commentBefore: '',
     toJSON: () => { return '{}'; },
-    key: EmptyNode.EMPTY_NODE,
+    get key(): Node { return EmptyNode.EMPTY_NODE; },
   };
 }
 

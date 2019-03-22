@@ -1,16 +1,20 @@
+import mocha from 'mocha';
+const describe = (mocha as any).describe;
+const it = (mocha as any).it;
+
 import fs from 'fs';
 import YAML from 'yaml';
 import assert from 'assert';
 
 import { CloudformationYaml } from '../src/CloudformationYaml';
 
-suite('CloudformationYaml Unit Tests', () => {
+
+describe('CloudformationYaml Unit Tests', () => {
   const backToProjectDirectory = '../..';
   const cloudformationYaml: any = new CloudformationYaml();
 
-  suite('findSubStackNodePairs', () => {
-    console.log(`Running findSubStackNodePairs tests`);
-    test('Finds all sub stack nodes', () => {
+  describe('findSubStackNodePairs', () => {
+    it('Finds all sub stack nodes', () => {
       const filePath = `${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`;
       const fileText = fs.readFileSync(filePath, 'utf8');
       const document = YAML.parseDocument(fileText, { keepCstNodes: true });

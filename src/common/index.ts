@@ -25,15 +25,6 @@ export function flattenArray(input: any[][]): any[] {
   return empty.concat.apply([], input);
 }
 
-export function createVsCodeRange(rowColumnPosition: RowColumnPosition, rangeLength: number): vscode.Range {
-  return new vscode.Range(
-    rowColumnPosition.line,
-    rowColumnPosition.column,
-    rowColumnPosition.line,
-    rowColumnPosition.column + rangeLength,
-  );
-}
-
 export function getRowColumnPosition(text: string, absolutePosition: number): RowColumnPosition {
   // YAML library doesn't have a line + column position, only absolute
   // So we have to count the lines.

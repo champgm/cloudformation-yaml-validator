@@ -34,6 +34,7 @@
     "clean": "mkdir -p empty_dir && rsync -a --delete empty_dir/ out/ && rsync -a --delete empty_dir/ coverage/",
     "vscode:prepublish": "npm run compile",
     "compile": "npm run clean && tsc -p ./",
+    "build": "npm run compile",
     "watch": "npm run clean && tsc -watch -p ./",
     "postinstall": "node ./node_modules/vscode/bin/install",
     "test": "npm run compile && node ./node_modules/vscode/bin/test",

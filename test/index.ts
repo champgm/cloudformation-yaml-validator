@@ -17,7 +17,7 @@ const Mocha = require('mocha');
 const remapIstanbul = require('remap-istanbul');
 
 // Linux: prevent a weird NPE when mocha on Linux requires the window size from the TTY
-// Since we are not running in a tty environment, we just implementt he method statically
+// Since we are not running in a tty environment, we just implement the method statically
 const tty = require('tty');
 if (!tty.getWindowSize) {
   tty.getWindowSize = (): number[] => {
@@ -30,10 +30,10 @@ if (!tty.getWindowSize) {
 //   useColors: true,
 // });
 
-let mochaOptions;
+let mochaOptions = {};
 function configure(mochaOpts: any): void {
   // mocha = new Mocha(mochaOpts);
-  mochaOptions = mochaOpts;
+  mochaOptions = mochaOpts ? mochaOpts : {};
 }
 exports.configure = configure;
 
@@ -57,6 +57,30 @@ function _readCoverOptions(testsRoot: string): ITestRunnerOptions | undefined {
 
 function run(testsRoot: string, clb: any): any {
   console.log(`The run method was called`);
+
+  let failureCount = 0;
+
+  // Do integration tests, but don't collect coverage.
+  console.log(`Run Integration Tests`);
+  const integrationMocha = new Mocha(Object.assign(mochaOptions, { ui: 'tdd', useColors: false }));
+  // try {
+  //   const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
+  //   // Fill into Mocha
+  //   integrationTests.forEach((file): Mocha => {
+  //     console.log(`Adding file to Mocha: ${file}`);
+  //     return integrationMocha.addFile(paths.join(testsRoot, file));
+  //   });
+
+  //   // Run the tests
+  //   integrationMocha.run()
+  //     .on('fail', () => failureCount += 1)
+  //     .on('end', () => {
+  //       console.log(`Integration tests are complete`);
+  //     });
+  // } catch (error) {
+  //   return clb(error);
+  // }
+
   // Read configuration for the coverage file
   const coverOptions = _readCoverOptions(testsRoot);
   let coverageRunner;
@@ -66,39 +90,10 @@ function run(testsRoot: string, clb: any): any {
     coverageRunner.setupCoverage();
   }
 
-  // Do integration tests, but don't collect coverage.
-  console.log(`Run Integration Tests`);
-  const integrationMocha = new Mocha({
-    ui: 'tdd',
-    useColors: true,
-  });
-  try {
-    const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
-    // Fill into Mocha
-    integrationTests.forEach((file): Mocha => {
-      console.log(`Adding file to Mocha: ${file}`);
-      return integrationMocha.addFile(paths.join(testsRoot, file));
-    });
-    // Run the tests
-    let failureCount = 0;
-
-    integrationMocha.run()
-      .on('fail', () => failureCount++)
-      .on('end', () => {
-        clb(undefined, failureCount);
-        console.log(`Integration tests are complete`)
-      });
-  } catch (error) {
-    return clb(error);
-  }
-
   // Do the rest of the test files, and collect coverage
   console.log(`Run Unit Tests`);
-  const unitMocha = new Mocha({
-    ui: 'tdd',
-    useColors: true,
-  });
-
+  const integrationOptions = Object.assign(mochaOptions, { ui: 'tdd', useColors: false });
+  const unitMocha = new Mocha(integrationOptions);
   const unitTests = glob.sync('**/**.test.js', { cwd: testsRoot });
   try {
     // Fill into Mocha
@@ -106,14 +101,14 @@ function run(testsRoot: string, clb: any): any {
       console.log(`Adding file to Mocha: ${file}`);
       return unitMocha.addFile(paths.join(testsRoot, file))
     });
-    // Run the tests
-    let failureCount = 0;
 
+    // Run the tests
     unitMocha.run()
-      .on('fail', () => failureCount++)
+      .on('fail', () => failureCount += 1)
       .on('end', () => {
-        clb(undefined, failureCount);
+        console.log(`Unit tests are complete`);
         if (coverageRunner) coverageRunner.reportCoverage();
+        clb(undefined, failureCount);
       });
   } catch (error) {
     return clb(error);
@@ -204,7 +199,7 @@ class CoverageRunner {
    * @memberOf CoverageRunner
    */
   public reportCoverage(): void {
-    console.log(`report COverage was called`);
+    console.log(`Generating code coverage report...`);
     const self = this;
     istanbul.hook.unhookRequire();
     let cov: any;

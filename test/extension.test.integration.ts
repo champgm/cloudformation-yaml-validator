@@ -29,7 +29,6 @@ suite('Extension Integration Tests', () => {
     });
   });
 
-
   suite('Invalid YAML files', () => {
     test('Finds diagnostics given invalid yaml files', async () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
