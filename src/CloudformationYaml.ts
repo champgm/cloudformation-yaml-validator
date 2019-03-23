@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import clone from 'lodash.clonedeep';
 import fs from 'fs';
+import path from 'path';
 import get from 'lodash.get';
 import YAML from 'yaml';
 
@@ -362,7 +363,7 @@ export class CloudformationYaml {
     return [];
   }
 
-  private getReferenceables(documentUri: vscode.Uri, editor: any): Referenceables {
+  private getReferenceables(documentUri: vscode.Uri, editor: vscode.TextEditor): Referenceables {
     const fullText = editor.document.getText();
     const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
@@ -377,7 +378,8 @@ export class CloudformationYaml {
       // Find sub stack referenceables, this will require work.
       const subStackNodePairs = this.findSubStackNodePairs(document);
       const rootFilePath = editor.document.fileName;
-      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
+      // const rootFilePath = editor.document.fil;
+      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf(path.sep))}`;
       const subStackReferenceables = this.getSubStackReferenceables(fullText, documentUri, subStackNodePairs, parentPath);
 
       return {
