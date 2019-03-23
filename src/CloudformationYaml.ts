@@ -63,7 +63,7 @@ export class CloudformationYaml {
     }
   }
 
-  private deleteDiagnostics(textDocument:vscode.TextDocument) {
+  private deleteDiagnostics(textDocument: vscode.TextDocument) {
     this.diagnosticCollection.delete(textDocument.uri);
   }
 
@@ -337,19 +337,21 @@ export class CloudformationYaml {
         while ((match = (regEx.exec(nodeValue.value as string) as RegExpExecArray)) != null) {
           // Trim the ${} off of the match
           const referencedKey = match[0].substring(2, match[0].length - 1);
-          const quotesOffset = Maps.nodeTypeToSubOffset[nodeValue.type];
-          if (quotesOffset !== 0 && quotesOffset !== 1) {
-            console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
+          if (!referencedKey.startsWith('AWS::')) {
+            const quotesOffset = Maps.nodeTypeToSubOffset[nodeValue.type];
+            if (quotesOffset !== 0 && quotesOffset !== 1) {
+              console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
+            }
+            const reference = {
+              referencedKey,
+              type: ReferenceTypes.SUB,
+              // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
+              // Add 2 because we've trimmed off '${'
+              // Add an offset for quotes (or not)
+              absoluteKeyPosition: nodeValue.range[0] + 5 + quotesOffset + 2 + match.index,
+            };
+            nodeValue.references.push(reference);
           }
-          const reference = {
-            referencedKey,
-            type: ReferenceTypes.SUB,
-            // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
-            // Add 2 because we've trimmed off '${'
-            // Add an offset for quotes (or not)
-            absoluteKeyPosition: nodeValue.range[0] + 5 + quotesOffset + 2 + match.index,
-          };
-          nodeValue.references.push(reference);
         }
         return [nodeValue];
       }
