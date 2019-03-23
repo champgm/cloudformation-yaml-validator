@@ -299,12 +299,15 @@ export class CloudformationYaml {
       // Handle nodes without a tag, these are probably first members of an !If or !FindInMap
       const nodeTag = nodeValue.tag || nodeValue.stringKey;
       if (nodeTag === '!If' || nodeTag === '!FindInMap' || nodeTag === 'DependsOn') {
-        nodeValue.references = [{
-          type: Maps.nodeTagToReferenceType[nodeTag],
-          referencedKey: nodeValue.value as string,
-          absoluteKeyPosition: nodeValue.range[0],
-        }];
-        return [nodeValue];
+        const referencedKey = nodeValue.value as string;
+        if (!referencedKey.startsWith('AWS::')) {
+          nodeValue.references = [{
+            referencedKey,
+            type: Maps.nodeTagToReferenceType[nodeTag],
+            absoluteKeyPosition: nodeValue.range[0],
+          }];
+          return [nodeValue];
+        }
       }
 
       if (nodeValue.tag === '!GetAtt') {

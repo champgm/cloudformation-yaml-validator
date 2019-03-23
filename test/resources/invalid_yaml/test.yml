@@ -26,7 +26,6 @@ Resources:
             # TODO: This should cause an error, there is no FirstMap
             !FindInMap [FirstMap, !Ref "AWS::Region", FourthParameter],
           ]
-        FifthParameter: !Sub "one-${AWS::Something}-three"
 
   SecondSubStack:
     Type: AWS::ApiGateway::RestApi
