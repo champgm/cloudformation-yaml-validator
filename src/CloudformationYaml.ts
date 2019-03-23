@@ -34,7 +34,7 @@ export class CloudformationYaml {
     }
     vscode.window.onDidChangeActiveTextEditor(this.checkYaml, this, subscriptions);
     vscode.workspace.onDidOpenTextDocument(this.checkYaml, this, subscriptions);
-    vscode.workspace.onDidCloseTextDocument((textDocument) => { this.diagnosticCollection.delete(textDocument.uri); }, null, subscriptions);
+    vscode.workspace.onDidCloseTextDocument(this.deleteDiagnostics, this, subscriptions);
     vscode.workspace.onDidSaveTextDocument(this.checkYaml, this, subscriptions);
     vscode.workspace.onDidChangeTextDocument(this.checkYaml, this, subscriptions);
   }
@@ -61,6 +61,10 @@ export class CloudformationYaml {
       console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
       // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     }
+  }
+
+  private deleteDiagnostics(textDocument:vscode.TextDocument) {
+    this.diagnosticCollection.delete(textDocument.uri);
   }
 
   private addDiagnostic(uri: vscode.Uri, newDiagnostic: vscode.Diagnostic) {

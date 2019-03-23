@@ -25,11 +25,6 @@ if (!tty.getWindowSize) {
   };
 }
 
-// let mocha = new Mocha({
-//   ui: 'tdd',
-//   useColors: true,
-// });
-
 let mochaOptions = {};
 function configure(mochaOpts: any): void {
   // mocha = new Mocha(mochaOpts);
@@ -63,23 +58,23 @@ function run(testsRoot: string, clb: any): any {
   // Do integration tests, but don't collect coverage.
   console.log(`Run Integration Tests`);
   const integrationMocha = new Mocha(Object.assign(mochaOptions, { ui: 'tdd', useColors: false }));
-  // try {
-  //   const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
-  //   // Fill into Mocha
-  //   integrationTests.forEach((file): Mocha => {
-  //     console.log(`Adding file to Mocha: ${file}`);
-  //     return integrationMocha.addFile(paths.join(testsRoot, file));
-  //   });
+  try {
+    const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
+    // Fill into Mocha
+    integrationTests.forEach((file): Mocha => {
+      console.log(`Adding file to Mocha: ${file}`);
+      return integrationMocha.addFile(paths.join(testsRoot, file));
+    });
 
-  //   // Run the tests
-  //   integrationMocha.run()
-  //     .on('fail', () => failureCount += 1)
-  //     .on('end', () => {
-  //       console.log(`Integration tests are complete`);
-  //     });
-  // } catch (error) {
-  //   return clb(error);
-  // }
+    // Run the tests
+    integrationMocha.run()
+      .on('fail', () => failureCount += 1)
+      .on('end', () => {
+        console.log(`Integration tests are complete`);
+      });
+  } catch (error) {
+    return clb(error);
+  }
 
   // Read configuration for the coverage file
   const coverOptions = _readCoverOptions(testsRoot);
@@ -99,7 +94,7 @@ function run(testsRoot: string, clb: any): any {
     // Fill into Mocha
     unitTests.forEach((file): Mocha => {
       console.log(`Adding file to Mocha: ${file}`);
-      return unitMocha.addFile(paths.join(testsRoot, file))
+      return unitMocha.addFile(paths.join(testsRoot, file));
     });
 
     // Run the tests
@@ -206,9 +201,8 @@ class CoverageRunner {
     if (typeof global[self.coverageVar] === 'undefined' || Object.keys(global[self.coverageVar]).length === 0) {
       console.error('No coverage information was collected, exit without writing coverage information');
       return;
-    } else {
-      cov = global[self.coverageVar];
     }
+    cov = global[self.coverageVar];
 
     // TODO consider putting this under a conditional flag
     // Files that are not touched by code ran by the test runner is manually instrumented, to
@@ -247,7 +241,7 @@ class CoverageRunner {
         if (self.options.verbose) {
           console.warn(warning);
         }
-      }
+      },
     });
 
     const reporter = new istanbul.Reporter(undefined, reportingDir);

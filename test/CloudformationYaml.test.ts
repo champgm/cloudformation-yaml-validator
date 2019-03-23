@@ -1,5 +1,6 @@
 import mocha from 'mocha';
 const describe = (mocha as any).describe;
+const beforeEach = (mocha as any).beforeEach;
 const it = (mocha as any).it;
 
 import fs from 'fs';
@@ -8,10 +9,12 @@ import assert from 'assert';
 
 import { CloudformationYaml } from '../src/CloudformationYaml';
 
-
 describe('CloudformationYaml Unit Tests', () => {
   const backToProjectDirectory = '../..';
-  const cloudformationYaml: any = new CloudformationYaml();
+  let cloudformationYaml: any;
+  beforeEach(async () => {
+    cloudformationYaml = new CloudformationYaml();
+  });
 
   describe('findSubStackNodePairs', () => {
     it('Finds all sub stack nodes', () => {
@@ -23,4 +26,5 @@ describe('CloudformationYaml Unit Tests', () => {
       assert.deepEqual(subStackNodePairs[0].stringKey, 'FirstSubStack');
     });
   });
+
 });
