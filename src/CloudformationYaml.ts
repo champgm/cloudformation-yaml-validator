@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import clone from 'lodash.clonedeep';
 import fs from 'fs';
+import path from 'path';
 import get from 'lodash.get';
 import YAML from 'yaml';
 
@@ -63,7 +64,7 @@ export class CloudformationYaml {
     }
   }
 
-  private deleteDiagnostics(textDocument:vscode.TextDocument) {
+  private deleteDiagnostics(textDocument: vscode.TextDocument) {
     this.diagnosticCollection.delete(textDocument.uri);
   }
 
@@ -299,12 +300,15 @@ export class CloudformationYaml {
       // Handle nodes without a tag, these are probably first members of an !If or !FindInMap
       const nodeTag = nodeValue.tag || nodeValue.stringKey;
       if (nodeTag === '!If' || nodeTag === '!FindInMap' || nodeTag === 'DependsOn') {
-        nodeValue.references = [{
-          type: Maps.nodeTagToReferenceType[nodeTag],
-          referencedKey: nodeValue.value as string,
-          absoluteKeyPosition: nodeValue.range[0],
-        }];
-        return [nodeValue];
+        const referencedKey = nodeValue.value as string;
+        if (!referencedKey.startsWith('AWS::')) {
+          nodeValue.references = [{
+            referencedKey,
+            type: Maps.nodeTagToReferenceType[nodeTag],
+            absoluteKeyPosition: nodeValue.range[0],
+          }];
+          return [nodeValue];
+        }
       }
 
       if (nodeValue.tag === '!GetAtt') {
@@ -337,19 +341,21 @@ export class CloudformationYaml {
         while ((match = (regEx.exec(nodeValue.value as string) as RegExpExecArray)) != null) {
           // Trim the ${} off of the match
           const referencedKey = match[0].substring(2, match[0].length - 1);
-          const quotesOffset = Maps.nodeTypeToSubOffset[nodeValue.type];
-          if (quotesOffset !== 0 && quotesOffset !== 1) {
-            console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
+          if (!referencedKey.startsWith('AWS::')) {
+            const quotesOffset = Maps.nodeTypeToSubOffset[nodeValue.type];
+            if (quotesOffset !== 0 && quotesOffset !== 1) {
+              console.error(`bad offset: ${nodeValue}, ${nodeValue.type}`);
+            }
+            const reference = {
+              referencedKey,
+              type: ReferenceTypes.SUB,
+              // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
+              // Add 2 because we've trimmed off '${'
+              // Add an offset for quotes (or not)
+              absoluteKeyPosition: nodeValue.range[0] + 5 + quotesOffset + 2 + match.index,
+            };
+            nodeValue.references.push(reference);
           }
-          const reference = {
-            referencedKey,
-            type: ReferenceTypes.SUB,
-            // Add 5 because '!Sub ' is 5 and the range begins at the beginning of the field
-            // Add 2 because we've trimmed off '${'
-            // Add an offset for quotes (or not)
-            absoluteKeyPosition: nodeValue.range[0] + 5 + quotesOffset + 2 + match.index,
-          };
-          nodeValue.references.push(reference);
         }
         return [nodeValue];
       }
@@ -357,7 +363,7 @@ export class CloudformationYaml {
     return [];
   }
 
-  private getReferenceables(documentUri: vscode.Uri, editor: any): Referenceables {
+  private getReferenceables(documentUri: vscode.Uri, editor: vscode.TextEditor): Referenceables {
     const fullText = editor.document.getText();
     const document = YAML.parseDocument(fullText, { keepCstNodes: true });
 
@@ -372,7 +378,8 @@ export class CloudformationYaml {
       // Find sub stack referenceables, this will require work.
       const subStackNodePairs = this.findSubStackNodePairs(document);
       const rootFilePath = editor.document.fileName;
-      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}`;
+      // const rootFilePath = editor.document.fil;
+      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf(path.sep))}`;
       const subStackReferenceables = this.getSubStackReferenceables(fullText, documentUri, subStackNodePairs, parentPath);
 
       return {

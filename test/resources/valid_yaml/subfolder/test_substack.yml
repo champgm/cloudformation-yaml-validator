@@ -15,6 +15,18 @@ Parameters:
     Description: A parameter
     Type: String
 
+  FourthParameter:
+    Description: A parameter
+    Type: String
+
+  FifthParameter:
+    Description: A parameter
+    Type: String
+
+  SixthParameter:
+    Description: A parameter
+    Type: String
+
 Outputs:
   FirstOutput:
     Description: !Ref FirstParameter
