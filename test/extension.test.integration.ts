@@ -1,24 +1,18 @@
-//
-// Note: This example test is leveraging the Mocha test framework.
-// Please refer to their documentation on https://mochajs.org/ for help.
-//
+import mocha from 'mocha';
+const describe = (mocha as any).describe;
+const beforeEach = (mocha as any).beforeEach;
+const it = (mocha as any).it;
 
-// The module 'assert' provides assertion methods from node
 import * as assert from 'assert';
 import vscode, { Uri, Diagnostic } from 'vscode';
 import path from 'path';
-import { diagnosticCollectionName } from '../src/CloudformationYaml';
 
-// as well as import your extension to test it
-// import * as myExtension from '../extension';
-
-// Defines a Mocha test suite to group tests of similar kind together
-suite('Extension Integration Tests', () => {
+describe('Extension Integration Tests', () => {
   console.log(`Running Extension Integration Tests`);
   const backToProjectDirectory = '../..';
 
-  suite('Valid YAML files', () => {
-    test('Finds no diagnostics given valid yaml files', async () => {
+  describe('Valid YAML files', () => {
+    it('Finds no diagnostics given valid yaml files', async () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
@@ -29,8 +23,8 @@ suite('Extension Integration Tests', () => {
     });
   });
 
-  suite('Invalid YAML files', () => {
-    test('Finds diagnostics given invalid yaml files', async () => {
+  describe('Invalid YAML files', () => {
+    it('Finds diagnostics given invalid yaml files', async () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);

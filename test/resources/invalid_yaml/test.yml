@@ -33,6 +33,7 @@ Resources:
     Properties:
       # This should cause an error, substack has no output, SecondOutput
       Name: !GetAtt FirstSubStack.Outputs.SecondOutput
+      OtherName: !GetAtt NonexistentSubstack.NativeValue
 
   ThirdSubStack:
     Type: AWS::CloudFormation::Stack

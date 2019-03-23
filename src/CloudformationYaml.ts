@@ -231,19 +231,43 @@ export class CloudformationYaml {
     nodesWhichReference.forEach((node) => {
       node.references.forEach((reference) => {
         const position = getRowColumnPosition(fullText, reference.absoluteKeyPosition);
-        const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
-        const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
 
-        // If it's a !GetAtt reference, check the sub-stack outputs and no other referenceables
+        // If it's a !GetAtt reference
         if (reference.type === ReferenceTypes.GET_ATT) {
-          if (referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0) {
+          // Check sub stack outputs if it's an outputs reference
+          const referencesAnOutput = reference.referencedKey.indexOf('.Outputs') > -1;
+          const noMatchingSubStackOutput = referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0;
+          if (referencesAnOutput && noMatchingSubStackOutput) {
+            const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
+            const diagnostic = createDiagnostic(
+              position,
+              reference.referencedKey.length,
+              vscode.DiagnosticSeverity.Error,
+              `${message} Valid outputs are:${referenceables.subStackReferenceables.outputs}`,
+            );
             this.addDiagnostic(documentUri, diagnostic);
+            return;
+          }
+          // Otherwise, just make sure the referenced thing exists
+          const keyPieces = reference.referencedKey.split('.');
+          const referencedResource = keyPieces[0];
+          if (localReferenceables.indexOf(referencedResource) < 0) {
+            const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
+            const diagnostic = createDiagnostic(
+              position,
+              referencedResource.length,
+              vscode.DiagnosticSeverity.Error,
+              message);
+            this.addDiagnostic(documentUri, diagnostic);
+            return;
           }
           return;
         }
 
         // Otherwise, check local referenceables
         if (localReferenceables.indexOf(reference.referencedKey) < 0) {
+          const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
+          const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
           this.addDiagnostic(documentUri, diagnostic);
           return;
         }

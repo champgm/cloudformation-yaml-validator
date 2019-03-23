@@ -103,11 +103,11 @@ function run(testsRoot: string, clb: any): any {
       .on('end', () => {
         console.log(`Unit tests are complete`);
         if (coverageRunner) coverageRunner.reportCoverage();
-        clb(undefined, failureCount);
       });
   } catch (error) {
     return clb(error);
   }
+  clb(undefined, failureCount);
 }
 exports.run = run;
 
