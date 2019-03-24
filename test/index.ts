@@ -55,6 +55,21 @@ function run(testsRoot: string, clb: any): any {
 
   let failureCount = 0;
 
+  let integrationDone = false;
+  let unitDone = false;
+  const integrationCallback = () => {
+    integrationDone = true;
+    if (unitDone) {
+      clb(undefined, failureCount);
+    }
+  };
+  const unitCallback = () => {
+    unitDone = true;
+    if (integrationDone) {
+      clb(undefined, failureCount);
+    }
+  };
+
   // Do integration tests, but don't collect coverage.
   console.log(`Run Integration Tests`);
   const integrationMocha = new Mocha(Object.assign(mochaOptions, { ui: 'tdd', useColors: false }));
@@ -71,6 +86,7 @@ function run(testsRoot: string, clb: any): any {
       .on('fail', () => failureCount += 1)
       .on('end', () => {
         console.log(`Integration tests are complete`);
+        integrationCallback();
       });
   } catch (error) {
     return clb(error);
@@ -103,11 +119,11 @@ function run(testsRoot: string, clb: any): any {
       .on('end', () => {
         console.log(`Unit tests are complete`);
         if (coverageRunner) coverageRunner.reportCoverage();
+        unitCallback();
       });
   } catch (error) {
     return clb(error);
   }
-  clb(undefined, failureCount);
 }
 exports.run = run;
 

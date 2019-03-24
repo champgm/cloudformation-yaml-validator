@@ -239,12 +239,7 @@ export class CloudformationYaml {
           const noMatchingSubStackOutput = referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0;
           if (referencesAnOutput && noMatchingSubStackOutput) {
             const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
-            const diagnostic = createDiagnostic(
-              position,
-              reference.referencedKey.length,
-              vscode.DiagnosticSeverity.Error,
-              `${message} Valid outputs are:${referenceables.subStackReferenceables.outputs}`,
-            );
+            const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
             this.addDiagnostic(documentUri, diagnostic);
             return;
           }

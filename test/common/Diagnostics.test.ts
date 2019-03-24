@@ -27,7 +27,7 @@ describe('Diagnostics', () => {
     });
   });
   describe('createVsCodeRange', () => {
-    it('', async () => {
+    it('should create a correct range', async () => {
       const length = 100;
       const position: RowColumnPosition = {
         line: 100,

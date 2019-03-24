@@ -4,14 +4,11 @@ import * as vscode from 'vscode';
 
 import { CloudformationYaml } from './CloudformationYaml';
 
-let cloudformationYaml: CloudformationYaml;
+export const cloudformationYaml: CloudformationYaml = new CloudformationYaml();
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  if (!cloudformationYaml) {
-    cloudformationYaml = new CloudformationYaml();
-  }
   cloudformationYaml.reset();
   cloudformationYaml.activate(context);
   cloudformationYaml.checkYaml();
