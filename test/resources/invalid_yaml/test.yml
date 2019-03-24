@@ -13,17 +13,12 @@ Resources:
     Properties:
       TemplateURL: subfolder/test_substack.yml
       Parameters:
-        # This should cause an error, there is no FirstParameter
         FirstParameter: !Ref FirstParameter
         SecondParameter:
-          # This should cause an error, there is no SecondParameter
           Fn::ImportValue: !Sub "one-${SecondParameter}-three"
         ThirdParameter: !If [
-            # TODO: This should cause an error, there is no FirstConditional
             FirstConditional,
-            # This should cause an error, there is no FourthParameter
             !Ref FourthParameter,
-            # TODO: This should cause an error, there is no FirstMap
             !FindInMap [FirstMap, !Ref "AWS::Region", FourthParameter],
           ]
 
@@ -31,7 +26,6 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     DependsOn: NonexistentSubstack
     Properties:
-      # This should cause an error, substack has no output, SecondOutput
       Name: !GetAtt FirstSubStack.Outputs.SecondOutput
       OtherName: !GetAtt NonexistentSubstack.NativeValue
 
@@ -39,5 +33,4 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: SecondSubStack
     Properties:
-      # This should cause an error, this file doesn't exist
       TemplateURL: subfolder/nonexistant_substack.yml
