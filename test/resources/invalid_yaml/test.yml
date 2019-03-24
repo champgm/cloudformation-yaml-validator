@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Fully Valid YAML
+Description: Invalid YAML
 
 Parameters:
   ThirdParameter:

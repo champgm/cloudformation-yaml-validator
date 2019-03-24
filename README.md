@@ -1,7 +1,6 @@
 # Cloudformation YAML Validator
 
-
-[![Version](https://vsmarketplacebadge.apphb.com/version/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator) [![Travis](https://img.shields.io/travis/champgm/cloudformation-yaml-validator/master.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator)
+[![Version](https://vsmarketplacebadge.apphb.com/version/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator) [![Travis](https://img.shields.io/travis/champgm/cloudformation-yaml-validator/master.svg)](https://travis-ci.org/champgm/cloudformation-yaml-validator)
 
 ## Features
 
@@ -14,6 +13,8 @@ This extension identifies and highlights many common Cloudformation YAML errors 
 
 It also identifies and highlights some situations that might be cause for concern
  * Missing optional parameter values when building `AWS::CloudFormation::Stack` resources
+ 
+ ![image](https://user-images.githubusercontent.com/2091382/54885220-38df0180-4e50-11e9-9340-bf7cc1a4d966.png)
 
 ## Triggers
 
@@ -26,21 +27,3 @@ To run it manually, open the command pallet and select "Cloud Formation YAML Val
 Known issues can be found here: https://github.com/champgm/cloudformation-yaml-validator/issues
 
 Please log more if you find any.
-
-## Release Notes
-
-### 0.2.0
-
- * Fixed sub stack attribute handling
- * Improved unit and integration tests
- * Better readme
-
-### 0.1.0
-
- * First release for the marketplace
-
-### 0.0.1
-
- * Beta release for scott
-
-
