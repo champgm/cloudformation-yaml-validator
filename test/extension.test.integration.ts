@@ -28,7 +28,6 @@ describe('Extension Integration Tests', () => {
   describe('Invalid YAML files', () => {
     it('Finds diagnostics given invalid yaml files', async () => {
       console.log(`invalid yaml tsets`);
-      const expectedNumberOfDiagnostics = 13;
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
