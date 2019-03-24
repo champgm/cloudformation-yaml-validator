@@ -1,82 +1,75 @@
-//
-// Note: This example test is leveraging the Mocha test framework.
-// Please refer to their documentation on https://mochajs.org/ for help.
-//
+import mocha from 'mocha';
+const describe = (mocha as any).describe;
+const beforeEach = (mocha as any).beforeEach;
+const it = (mocha as any).it;
 
-// The module 'assert' provides assertion methods from node
 import * as assert from 'assert';
 import vscode, { Uri, Diagnostic } from 'vscode';
 import path from 'path';
-import { diagnosticCollectionName } from '../src/CloudformationYaml';
 
-// as well as import your extension to test it
-// import * as myExtension from '../extension';
+import { cloudformationYaml } from '../src/extension';
 
-// Defines a Mocha test suite to group tests of similar kind together
-suite('Extension Integration Tests', () => {
+describe('Extension Integration Tests', () => {
   console.log(`Running Extension Integration Tests`);
   const backToProjectDirectory = '../..';
 
-  suite('Valid YAML files', () => {
-    test('Finds no diagnostics given valid yaml files', async () => {
+  describe('Valid YAML files', () => {
+    it('Finds no diagnostics given valid yaml files', async () => {
+      console.log(`valid yaml file tst`);
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await checkDiagnosticsUntilExpectedLength(uri, 0, 5000);
       const diagnostics = vscode.languages.getDiagnostics(uri);
       assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
       vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     });
   });
 
-  suite('Invalid YAML files', () => {
-    test('Finds diagnostics given invalid yaml files', async () => {
+  describe('Invalid YAML files', () => {
+    it('Finds diagnostics given invalid yaml files', async () => {
+      console.log(`invalid yaml tsets`);
+      const expectedNumberOfDiagnostics = 13;
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await checkDiagnosticsUntilExpectedLength(uri, 11, 5000);
       const diagnostics = vscode.languages.getDiagnostics(uri);
-      assert.deepEqual(diagnostics.length, 11, `Diagnostics array should have 12 items: ${JSON.stringify(diagnostics)}`);
+
+      const expectedMessages = [
+        'Properties missing value for parameter with default value, \'FourthParameter\'',
+        'Properties missing value for required parameter, \'FifthParameter\'',
+        'Referenced file does not have parameter, \'SecondParameter\'',
+        'Unable to find referenced condition, \'FirstConditional\'',
+        'Unable to find referenced map, \'FirstMap\'',
+        'Unable to find referenced resource, \'NonexistentSubstack\'',
+        'Unable to find referenced sub stack output, \'FirstSubStack.Outputs.SecondOutput\'',
+        'Unable to find referenced value, \'FirstParameter\'',
+        'Unable to find referenced value, \'FourthParameter\'',
+        'Unable to find referenced value, \'NonexistentSubstack\'',
+        'Unable to find referenced value, \'SecondParameter\'',
+        'Unable to load or parse template file',
+      ];
+
+      expectedMessages.forEach((message) => {
+        findAndRemoveDiagnosticByMessage(message, diagnostics);
+      });
+      const remainingDiagnostics = diagnostics.map((diagnostic) => {
+        return diagnostic.message;
+      });
+      assert.deepEqual(0, diagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${remainingDiagnostics}`);
       vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     });
   });
 });
 
-async function checkDiagnosticsUntilExpectedLength(uri: vscode.Uri, expectedLength: number, timeout: number) {
-  let totalTime = 0;
-  while (totalTime < timeout) {
-    console.log(`Getting diagnostics for URI: ${JSON.stringify(uri)}`);
-    const diagnostics = vscode.languages.getDiagnostics(uri);
-    if (diagnostics.length === expectedLength) {
-      return;
-    }
-    console.log(`Diagnostics length, '${diagnostics.length}', did not equal expected length, '${expectedLength}', trying again...`);
-    totalTime += 200;
-    await sleep(200);
-  }
-}
-
-function returnError(mightThrow: () => void) {
-  try {
-    mightThrow();
-  } catch (error) {
-    return error;
-  }
-}
-
-function getDiagnostics(uri: Uri): Promise<Diagnostic[]> {
-  return new Promise(async (resolve, reject) => {
-    let resolved = false;
-    vscode.languages.onDidChangeDiagnostics((event) => {
-      const uriDiagnostics = vscode.languages.getDiagnostics(uri);
-      resolved = true;
-      resolve(uriDiagnostics);
-    });
-    await sleep(10000);
-    if (!resolved) {
-      reject('Diagnostic wait timed out');
-    }
+function findAndRemoveDiagnosticByMessage(message: string, diagnostics: vscode.Diagnostic[]) {
+  const expectedDiagnostic = diagnostics.find((diagnostic) => {
+    return diagnostic.message.indexOf(message) > -1;
   });
+  if (!expectedDiagnostic) {
+    assert.fail(`Expected to find diagnostic with message containing: ${message}`);
+  } else {
+    diagnostics.splice(diagnostics.indexOf(expectedDiagnostic), 1);
+  }
 }
 
 export async function sleep(milliseconds?: number) {
