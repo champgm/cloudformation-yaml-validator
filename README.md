@@ -14,6 +14,8 @@ This extension identifies and highlights many common Cloudformation YAML errors 
 
 It also identifies and highlights some situations that might be cause for concern
  * Missing optional parameter values when building `AWS::CloudFormation::Stack` resources
+ 
+ ![image](https://user-images.githubusercontent.com/2091382/54885220-38df0180-4e50-11e9-9340-bf7cc1a4d966.png)
 
 ## Triggers
 
