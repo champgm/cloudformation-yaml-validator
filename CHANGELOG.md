@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.2.2] & [0.2.3]
+### Changed
+ - More extension manifest thrashing
+
 ## [0.2.1]
 ### Changed
  - Better README notes, changelog

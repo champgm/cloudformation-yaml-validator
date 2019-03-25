@@ -8,7 +8,16 @@
   },
   "publisher": "champgm",
   "categories": [
+    "Programming Languages",
+    "Linters",
     "Other"
+  ],
+  "keywords": [
+    "aws",
+    "cloud formation",
+    "cloudformation",
+    "yaml",
+    "validator"
   ],
   "activationEvents": [
     "onLanguage:yaml",
