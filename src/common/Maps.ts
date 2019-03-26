@@ -10,6 +10,7 @@ export namespace Maps {
   export const nodeTypeToSubOffset = {
     PLAIN: 0,
     QUOTE_DOUBLE: 1,
+    QUOTE_SINGLE: 1,
   };
 
   export const referenceTypeToDiagnosticMessage: { [referenceType: string]: (key: string) => string } = {

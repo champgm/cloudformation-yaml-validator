@@ -231,11 +231,28 @@ export class CloudformationYaml {
     nodesWhichReference.forEach((node) => {
       node.references.forEach((reference) => {
         const position = getRowColumnPosition(fullText, reference.absoluteKeyPosition);
+        // This might reference a stack output. If so, save that tidbit for later.
+        const referencesAnOutput = reference.referencedKey.indexOf('.Outputs') > -1;
+
+        // This might be a reference to a resource's native attribute.
+        if (!referencesAnOutput) {
+          const keyPieces = reference.referencedKey.split('.');
+          if (keyPieces.length > 1) {
+            // If that's the case, just check to make sure the resource exists.
+            const referencedResource = keyPieces[0];
+            if (localReferenceables.indexOf(referencedResource) < 0) {
+              const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
+              const diagnostic = createDiagnostic(position, referencedResource.length, vscode.DiagnosticSeverity.Error, message);
+              this.addDiagnostic(documentUri, diagnostic);
+              return;
+            }
+            return;
+          }
+        }
 
         // If it's a !GetAtt reference
         if (reference.type === ReferenceTypes.GET_ATT) {
           // Check sub stack outputs if it's an outputs reference
-          const referencesAnOutput = reference.referencedKey.indexOf('.Outputs') > -1;
           const noMatchingSubStackOutput = referenceables.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0;
           if (referencesAnOutput && noMatchingSubStackOutput) {
             const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
@@ -243,23 +260,10 @@ export class CloudformationYaml {
             this.addDiagnostic(documentUri, diagnostic);
             return;
           }
-          // Otherwise, just make sure the referenced thing exists
-          const keyPieces = reference.referencedKey.split('.');
-          const referencedResource = keyPieces[0];
-          if (localReferenceables.indexOf(referencedResource) < 0) {
-            const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
-            const diagnostic = createDiagnostic(
-              position,
-              referencedResource.length,
-              vscode.DiagnosticSeverity.Error,
-              message);
-            this.addDiagnostic(documentUri, diagnostic);
-            return;
-          }
           return;
         }
 
-        // Otherwise, check local referenceables
+        // Otherwise, check local referenceables, this encompasses all !Ref, !Sub, !FindInMap, and !If types
         if (localReferenceables.indexOf(reference.referencedKey) < 0) {
           const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
           const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
@@ -315,7 +319,7 @@ export class CloudformationYaml {
     }
 
     // Otherwise, we need to inspect the node
-    if (nodeValue.type === NodeTypes.PLAIN || nodeValue.type === NodeTypes.QUOTE_DOUBLE) {
+    if (nodeValue.type === NodeTypes.PLAIN || nodeValue.type === NodeTypes.QUOTE_DOUBLE || nodeValue.type === NodeTypes.QUOTE_SINGLE) {
       // Handle nodes without a tag, these are probably first members of an !If or !FindInMap
       const nodeTag = nodeValue.tag || nodeValue.stringKey;
       if (nodeTag === '!If' || nodeTag === '!FindInMap' || nodeTag === 'DependsOn') {

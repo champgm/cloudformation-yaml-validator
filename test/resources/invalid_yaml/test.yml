@@ -28,6 +28,8 @@ Resources:
     Properties:
       Name: !GetAtt FirstSubStack.Outputs.SecondOutput
       OtherName: !GetAtt NonexistentSubstack.NativeValue
+      YetAnotherName: !Ref RefStack.NativeValue
+      TrickyName: !Sub '${SingleQuoteStack.NativeValue}'
 
   ThirdSubStack:
     Type: AWS::CloudFormation::Stack

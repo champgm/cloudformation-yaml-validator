@@ -6,7 +6,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-## [0.2.2] & [0.2.3]
+## [0.2.5]
+### Changed
+ - GH-21: Fixed native resource attribute references
+ - Also fixed an issue where fields using single quotes were handled incorrectly
+
+## [0.2.2] & [0.2.3] & [0.2.4]
 ### Changed
  - More extension manifest thrashing
 
