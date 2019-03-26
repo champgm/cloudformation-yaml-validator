@@ -47,5 +47,7 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !GetAtt FirstSubStack.Outputs.FirstOutput
+      AnotherThing: !Ref FirstSubStack.NativeThing
+      YetAnotherThing: !Sub ${FirstSubStack.NativeThing}
 
 

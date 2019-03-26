@@ -15,7 +15,6 @@ describe('Extension Integration Tests', () => {
 
   describe('Valid YAML files', () => {
     it('Finds no diagnostics given valid yaml files', async () => {
-      console.log(`valid yaml file tst`);
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
@@ -27,7 +26,6 @@ describe('Extension Integration Tests', () => {
 
   describe('Invalid YAML files', () => {
     it('Finds diagnostics given invalid yaml files', async () => {
-      console.log(`invalid yaml tsets`);
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
@@ -44,7 +42,9 @@ describe('Extension Integration Tests', () => {
         'Unable to find referenced value, \'FirstParameter\'',
         'Unable to find referenced value, \'FourthParameter\'',
         'Unable to find referenced value, \'NonexistentSubstack\'',
+        'Unable to find referenced value, \'RefStack\'',
         'Unable to find referenced value, \'SecondParameter\'',
+        'Unable to find referenced value, \'SingleQuoteStack\'',
         'Unable to load or parse template file',
       ];
 
@@ -54,7 +54,7 @@ describe('Extension Integration Tests', () => {
       const remainingDiagnostics = diagnostics.map((diagnostic) => {
         return diagnostic.message;
       });
-      assert.deepEqual(0, diagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${remainingDiagnostics}`);
+      assert.deepEqual(0, diagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${JSON.stringify(remainingDiagnostics, null, 2)}`);
       vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     });
   });
