@@ -6,6 +6,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.2.6]
+### Changed
+ - GH-23: Verified `!Join` tags work fine
+ - Touched up README
+
 ## [0.2.5]
 ### Changed
  - GH-21: Fixed native resource attribute references
