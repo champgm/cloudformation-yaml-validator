@@ -33,35 +33,57 @@ export class CloudformationYaml {
     if (subscriptions.indexOf(this) < 0) {
       subscriptions.push(this);
     }
-    vscode.window.onDidChangeActiveTextEditor(this.checkYaml, this, subscriptions);
-    vscode.workspace.onDidOpenTextDocument(this.checkYaml, this, subscriptions);
+    vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, subscriptions);
+    vscode.workspace.onDidOpenTextDocument(this.checkSingleYaml, this, subscriptions);
     vscode.workspace.onDidCloseTextDocument(this.deleteDiagnostics, this, subscriptions);
-    vscode.workspace.onDidSaveTextDocument(this.checkYaml, this, subscriptions);
-    vscode.workspace.onDidChangeTextDocument(this.checkYaml, this, subscriptions);
+    vscode.workspace.onDidSaveTextDocument(this.checkSingleYaml, this, subscriptions);
+    vscode.workspace.onDidChangeTextDocument(this.checkSingleYaml, this, subscriptions);
   }
 
-  public checkYaml() {
+  public checkSingleYaml() {
+    this.checkActiveFile(false, true);
+  }
+
+  public checkActiveFile(recurse: boolean, isRoot: boolean) {
+    const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
+    if (editor) {
+      const documentUri = editor.document.uri;
+      this.diagnosticCollection.delete(documentUri);
+      const fullText = editor.document.getText();
+      const document = YAML.parseDocument(fullText, { keepCstNodes: true });
+      const filePath = editor.document.fileName;
+      this.checkYaml(fullText, documentUri, filePath, document, recurse, isRoot);
+    }
+  }
+
+  public async checkYaml(
+    fullText: string,
+    documentUri: vscode.Uri,
+    filePath: string,
+    document: YAML.ast.Document,
+    recurse: boolean,
+    isRoot: boolean,
+  ): Promise<vscode.Diagnostic[]> {
     try {
-      const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
-      if (editor) {
-        const documentUri = editor.document.uri;
-        this.diagnosticCollection.delete(documentUri);
-        const fullText = editor.document.getText();
-        const document = YAML.parseDocument(fullText, { keepCstNodes: true });
+      console.log(`CHECKING YAML: ${documentUri.fsPath}`);
+      // Build a list of referenceable stuff, open sub stack files if necessary
+      const referenceables = await this.getReferenceables(fullText, filePath, documentUri, recurse);
+      const nodesWhichReference = this.getNodesWhichReference(document);
+      this.buildInvalidReferenceDiagnostics(fullText, documentUri, referenceables, nodesWhichReference);
 
-        // Check all !Ref and !Sub tags
-        const referenceables = this.getReferenceables(documentUri, editor);
-        const nodesWhichReference = this.getNodesWhichReference(document);
-        this.buildInvalidReferenceDiagnostics(fullText, documentUri, referenceables, nodesWhichReference);
-
-        // Check parameters in sub stacks to make sure they can be referenced
-        const subStackNodePairs = this.findSubStackNodePairs(document);
-        this.buildInvalidSubStackParameterDiagnostics(fullText, documentUri, referenceables.subStackReferenceables, subStackNodePairs);
-      }
+      // Check parameters in sub stacks to make sure they can be referenced
+      const subStackNodePairs = this.findSubStackNodePairs(document);
+      this.buildInvalidSubStackParameterDiagnostics(fullText, documentUri, referenceables.subStackReferenceables, subStackNodePairs);
     } catch (error) {
       console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
       // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     }
+    if (recurse && isRoot) {
+      vscode.window.showInformationMessage('Done recursing through sub stack YAMLs');
+    }
+    return documentUri
+      ? this.diagnosticCollection.get(documentUri) || []
+      : [];
   }
 
   private deleteDiagnostics(textDocument: vscode.TextDocument) {
@@ -159,15 +181,17 @@ export class CloudformationYaml {
     });
   }
 
-  private getSubStackReferenceables(
+  private async getSubStackReferenceables(
     fullText: string,
     documentUri: vscode.Uri,
     subStackNodePairs: Node[],
     parentPath: string,
-  ): SubStackReferenceables {
+    recurse: boolean,
+  ): Promise<SubStackReferenceables> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStackParameterReferenceablesMap = {};
-    subStackNodePairs.forEach((nodePair) => {
+    // subStackNodePairs.forEach((nodePair) => {
+    for (const nodePair of subStackNodePairs) {
       const properties = (nodePair.value as Node).get('Properties') as Node;
       const templateUrl = (properties as Node).get('TemplateURL');
       if (typeof templateUrl === 'string') {
@@ -177,9 +201,21 @@ export class CloudformationYaml {
         try {
           const fileText = fs.readFileSync(filePath, 'utf8');
           document = YAML.parseDocument(fileText, { keepCstNodes: true });
+
+          if (recurse) {
+            // Gather information necessary to check the file
+            const uriString = `file://${filePath}`;
+            const documentUri = vscode.Uri.parse(uriString);
+            const diagnostics = await this.checkYaml(fileText, documentUri, filePath, document, recurse, false);
+            // If diagnostics for that file were generated, open it.
+            if (diagnostics.length > 0) {
+              const textDocument = await vscode.workspace.openTextDocument(documentUri);
+              await vscode.window.showTextDocument(textDocument);
+            }
+          }
         } catch (error) {
           const templateUrlNodePair = getNodeItemByStringKey(properties, 'TemplateURL');
-          if (!templateUrlNodePair) return;
+          if (!templateUrlNodePair) break;
           const templateUrlNodeValue = templateUrlNodePair.value as Node;
           const templateUrl = templateUrlNodeValue.value as string;
           const position = getRowColumnPosition(fullText, templateUrlNodeValue.range[0]);
@@ -190,7 +226,7 @@ export class CloudformationYaml {
             `Unable to load or parse template file, '${filePath}'. Error encountered: ${JSON.stringify(revealAllProperties(error))}`,
           );
           this.addDiagnostic(documentUri, diagnostic);
-          return;
+          break;
         }
         const outputs = document.contents.get('Outputs');
         const outputKeys = getYamlNodeKeys(outputs);
@@ -211,7 +247,7 @@ export class CloudformationYaml {
           });
         }
       }
-    });
+    }
     return {
       outputs: referenceableOutputs,
       parameters: referenceableParameters,
@@ -386,9 +422,14 @@ export class CloudformationYaml {
     return [];
   }
 
-  private getReferenceables(documentUri: vscode.Uri, editor: vscode.TextEditor): Referenceables {
-    const fullText = editor.document.getText();
-    const document = YAML.parseDocument(fullText, { keepCstNodes: true });
+  private async getReferenceables(
+    documentText: string,
+    filePath: string,
+    documentUri: vscode.Uri,
+    recurse: boolean,
+  ): Promise<Referenceables> {
+    // const fullText = editor.document.getText();
+    const document = YAML.parseDocument(documentText, { keepCstNodes: true });
 
     if (document.contents) {
       // Get local referenceables, these are just keys of various top-level sections
@@ -400,10 +441,9 @@ export class CloudformationYaml {
 
       // Find sub stack referenceables, this will require work.
       const subStackNodePairs = this.findSubStackNodePairs(document);
-      const rootFilePath = editor.document.fileName;
-      // const rootFilePath = editor.document.fil;
-      const parentPath = `${rootFilePath.substring(0, rootFilePath.lastIndexOf(path.sep))}`;
-      const subStackReferenceables = this.getSubStackReferenceables(fullText, documentUri, subStackNodePairs, parentPath);
+      // const rootFilePath = editor.document.fileName;
+      const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
+      const subStackReferenceables = await this.getSubStackReferenceables(documentText, documentUri, subStackNodePairs, parentPath, recurse);
 
       return {
         subStackReferenceables,

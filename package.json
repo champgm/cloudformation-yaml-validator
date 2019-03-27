@@ -21,7 +21,8 @@
   ],
   "activationEvents": [
     "onLanguage:yaml",
-    "onCommand:extension.cloudFormationYamlValidator"
+    "onCommand:extension.cloudFormationYamlValidator",
+    "onCommand:extension.cloudFormationYamlValidatorRecursive"
   ],
   "repository": {
     "type": "git",
@@ -36,6 +37,10 @@
       {
         "command": "extension.cloudFormationYamlValidator",
         "title": "Cloud Formation YAML Validator: Validate YAML"
+      },
+      {
+        "command": "extension.cloudFormationYamlValidatorRecursive",
+        "title": "Cloud Formation YAML Validator: Validate YAML, recurse into sub stacks"
       }
     ]
   },

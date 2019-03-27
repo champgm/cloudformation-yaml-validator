@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.3.6]
+### Added
+ - GH-20: Added a command to recursively search through sub stacks
+
 ## [0.2.6]
 ### Changed
  - GH-23: Verified `!Join` tags work fine

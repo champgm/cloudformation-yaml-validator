@@ -11,15 +11,19 @@ export const cloudformationYaml: CloudformationYaml = new CloudformationYaml();
 export function activate(context: vscode.ExtensionContext) {
   cloudformationYaml.reset();
   cloudformationYaml.activate(context);
-  cloudformationYaml.checkYaml();
+  cloudformationYaml.checkActiveFile(false, true);
 
   // The command has been defined in the package.json file
   // Now provide the implementation of the command with registerCommand
   // The commandId parameter must match the command field in package.json
-  const disposable = vscode.commands.registerCommand('extension.cloudFormationYamlValidator', () => {
-    cloudformationYaml.checkYaml();
+  const disposable1 = vscode.commands.registerCommand('extension.cloudFormationYamlValidator', () => {
+    cloudformationYaml.checkActiveFile(false, true);
   });
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(disposable1);
+  const disposable2 = vscode.commands.registerCommand('extension.cloudFormationYamlValidatorRecursive', () => {
+    cloudformationYaml.checkActiveFile(true, true);
+  });
+  context.subscriptions.push(disposable2);
 }
 
 // this method is called when your extension is deactivated
