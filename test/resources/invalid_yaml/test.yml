@@ -36,3 +36,4 @@ Resources:
     DependsOn: SecondSubStack
     Properties:
       TemplateURL: subfolder/nonexistant_substack.yml
+      AnotherProperty: !Join [",", [a, !Sub "${SubInJoin}", !Ref RefInJoin]]

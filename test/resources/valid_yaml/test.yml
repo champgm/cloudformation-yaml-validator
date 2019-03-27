@@ -38,7 +38,12 @@ Resources:
         FirstParameter: !Ref FirstParameter
         SecondParameter:
           Fn::ImportValue: !Sub "one-${SecondParameter}-three"
-        ThirdParameter: !If [FirstConditional, !Ref FourthParameter, !FindInMap [FirstMap, !Ref "AWS::Region", FourthParameter]]
+        ThirdParameter:
+          !If [
+            FirstConditional,
+            !Ref FourthParameter,
+            !FindInMap [FirstMap, !Ref "AWS::Region", FourthParameter],
+          ]
         FourthParameter: !Sub "one-${AWS::Something}-three"
         FifthParameter: !If [AWS::Something, asdf, 123]
         SixthParameter: !FindInMap [AWS::Something, asdf, 123]
@@ -49,5 +54,4 @@ Resources:
       Name: !GetAtt FirstSubStack.Outputs.FirstOutput
       AnotherThing: !Ref FirstSubStack.NativeThing
       YetAnotherThing: !Sub ${FirstSubStack.NativeThing}
-
-
+      JoinTag: !Join ["-", [something, !Ref FirstSubStack]]

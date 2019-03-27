@@ -45,6 +45,8 @@ describe('Extension Integration Tests', () => {
         'Unable to find referenced value, \'RefStack\'',
         'Unable to find referenced value, \'SecondParameter\'',
         'Unable to find referenced value, \'SingleQuoteStack\'',
+        'Unable to find referenced value, \'SubInJoin\'',
+        'Unable to find referenced value, \'RefInJoin\'',
         'Unable to load or parse template file',
       ];
 
