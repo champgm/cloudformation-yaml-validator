@@ -6,7 +6,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-## [0.3.6]
+## [0.3.0]
 ### Added
  - GH-20: Added a command to recursively search through sub stacks
 

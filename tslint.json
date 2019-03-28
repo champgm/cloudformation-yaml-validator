@@ -18,6 +18,7 @@
     "quotemark": [
       true,
       "single"
-    ]
+    ],
+    "prefer-template": false
   }
 }

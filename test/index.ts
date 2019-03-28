@@ -1,7 +1,5 @@
 // Taken from https://rpeshkov.net/blog/vscode-extension-coverage/
 
-console.log(`I guess this file was imported somewhere`);
-
 'use strict';
 
 declare var global: any;
@@ -51,8 +49,6 @@ function _readCoverOptions(testsRoot: string): ITestRunnerOptions | undefined {
 }
 
 function run(testsRoot: string, clb: any): any {
-  console.log(`The run method was called`);
-
   let failureCount = 0;
 
   let integrationDone = false;
@@ -71,7 +67,7 @@ function run(testsRoot: string, clb: any): any {
   };
 
   // Do integration tests, but don't collect coverage.
-  console.log(`Run Integration Tests`);
+  console.log(`Running Integration Tests...`);
   const integrationMocha = new Mocha(Object.assign(mochaOptions, { ui: 'tdd', useColors: false }));
   try {
     const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
@@ -102,7 +98,7 @@ function run(testsRoot: string, clb: any): any {
   }
 
   // Do the rest of the test files, and collect coverage
-  console.log(`Run Unit Tests`);
+  console.log(`Run Unit Tests...`);
   const integrationOptions = Object.assign(mochaOptions, { ui: 'tdd', useColors: false });
   const unitMocha = new Mocha(integrationOptions);
   const unitTests = glob.sync('**/**.test.js', { cwd: testsRoot });

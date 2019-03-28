@@ -20,6 +20,8 @@ export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
 export class CloudformationYaml {
   private diagnosticCollection: vscode.DiagnosticCollection;
+  public urisCurrentlyBeingProcessed: vscode.Uri[] = [];
+  private subscriptions: vscode.Disposable[] = [];
 
   constructor() {
     this.diagnosticCollection = vscode.languages.createDiagnosticCollection(diagnosticCollectionName);
@@ -29,22 +31,28 @@ export class CloudformationYaml {
     this.diagnosticCollection = this.diagnosticCollection
       ? this.diagnosticCollection
       : vscode.languages.createDiagnosticCollection(diagnosticCollectionName);
-    const subscriptions: vscode.Disposable[] = context.subscriptions;
-    if (subscriptions.indexOf(this) < 0) {
-      subscriptions.push(this);
+    this.subscriptions = context.subscriptions;
+    if (this.subscriptions.indexOf(this) < 0) {
+      this.subscriptions.push(this);
     }
-    vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, subscriptions);
-    vscode.workspace.onDidOpenTextDocument(this.checkSingleYaml, this, subscriptions);
-    vscode.workspace.onDidCloseTextDocument(this.deleteDiagnostics, this, subscriptions);
-    vscode.workspace.onDidSaveTextDocument(this.checkSingleYaml, this, subscriptions);
-    vscode.workspace.onDidChangeTextDocument(this.checkSingleYaml, this, subscriptions);
+    // vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, subscriptions);
+    vscode.workspace.onDidOpenTextDocument(this.checkSingleYaml, this, this.subscriptions);
+    vscode.workspace.onDidCloseTextDocument(this.deleteDiagnostics, this, this.subscriptions);
+    vscode.workspace.onDidSaveTextDocument(this.checkSingleYaml, this, this.subscriptions);
+    vscode.workspace.onDidChangeTextDocument(this.checkSingleYaml, this, this.subscriptions);
   }
 
-  public checkSingleYaml() {
-    this.checkActiveFile(false, true);
+  public deactivate() {
+    this.subscriptions.forEach((subscription) => {
+      subscription.dispose();
+    });
   }
 
-  public checkActiveFile(recurse: boolean, isRoot: boolean) {
+  public async checkSingleYaml() {
+    await this.checkActiveFile(false, true);
+  }
+
+  public async checkActiveFile(recurse: boolean, isRoot: boolean) {
     const editor: vscode.TextEditor = vscode.window.activeTextEditor as vscode.TextEditor;
     if (editor) {
       const documentUri = editor.document.uri;
@@ -52,7 +60,7 @@ export class CloudformationYaml {
       const fullText = editor.document.getText();
       const document = YAML.parseDocument(fullText, { keepCstNodes: true });
       const filePath = editor.document.fileName;
-      this.checkYaml(fullText, documentUri, filePath, document, recurse, isRoot);
+      await this.checkYaml(fullText, documentUri, filePath, document, recurse, isRoot);
     }
   }
 
@@ -64,8 +72,11 @@ export class CloudformationYaml {
     recurse: boolean,
     isRoot: boolean,
   ): Promise<vscode.Diagnostic[]> {
+    if (this.urisCurrentlyBeingProcessed.indexOf(documentUri) > -1) {
+      return [];
+    }
     try {
-      console.log(`CHECKING YAML: ${documentUri.fsPath}`);
+      this.urisCurrentlyBeingProcessed.push(documentUri);
       // Build a list of referenceable stuff, open sub stack files if necessary
       const referenceables = await this.getReferenceables(fullText, filePath, documentUri, recurse);
       const nodesWhichReference = this.getNodesWhichReference(document);
@@ -77,6 +88,8 @@ export class CloudformationYaml {
     } catch (error) {
       console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
       // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
+    } finally {
+      this.urisCurrentlyBeingProcessed.splice(this.urisCurrentlyBeingProcessed.indexOf(documentUri), 1);
     }
     if (recurse && isRoot) {
       vscode.window.showInformationMessage('Done recursing through sub stack YAMLs');
@@ -472,9 +485,9 @@ export class CloudformationYaml {
     }
   }
 
-  public reset() {
+  public async reset() {
     if (this.diagnosticCollection) {
-      this.diagnosticCollection.clear();
+      await this.diagnosticCollection.clear();
     }
   }
 }
