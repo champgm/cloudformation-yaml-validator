@@ -1,7 +1,5 @@
 // Taken from https://rpeshkov.net/blog/vscode-extension-coverage/
 
-console.log(`I guess this file was imported somewhere`);
-
 'use strict';
 
 declare var global: any;
@@ -40,19 +38,15 @@ function _mkDirIfExists(dir: string): void {
 
 function _readCoverOptions(testsRoot: string): ITestRunnerOptions | undefined {
   const coverConfigPath = paths.join(testsRoot, '..', '..', 'coverconfig.json');
-  console.log(`Cover config path: ${coverConfigPath}`);
   if (fs.existsSync(coverConfigPath)) {
     const configContent = fs.readFileSync(coverConfigPath, 'utf-8');
     const configObject = JSON.parse(configContent);
-    console.log(`Coverage config: ${JSON.stringify(configObject, null, 2)}`);
     return configObject;
   }
   return undefined;
 }
 
 function run(testsRoot: string, clb: any): any {
-  console.log(`The run method was called`);
-
   let failureCount = 0;
 
   let integrationDone = false;
@@ -71,13 +65,12 @@ function run(testsRoot: string, clb: any): any {
   };
 
   // Do integration tests, but don't collect coverage.
-  console.log(`Run Integration Tests`);
+  console.log(`Running Integration Tests...`);
   const integrationMocha = new Mocha(Object.assign(mochaOptions, { ui: 'tdd', useColors: false }));
   try {
     const integrationTests = glob.sync('**/**.test.integration.js', { cwd: testsRoot });
     // Fill into Mocha
     integrationTests.forEach((file): Mocha => {
-      console.log(`Adding file to Mocha: ${file}`);
       return integrationMocha.addFile(paths.join(testsRoot, file));
     });
 
@@ -102,14 +95,13 @@ function run(testsRoot: string, clb: any): any {
   }
 
   // Do the rest of the test files, and collect coverage
-  console.log(`Run Unit Tests`);
+  console.log(`Run Unit Tests...`);
   const integrationOptions = Object.assign(mochaOptions, { ui: 'tdd', useColors: false });
   const unitMocha = new Mocha(integrationOptions);
   const unitTests = glob.sync('**/**.test.js', { cwd: testsRoot });
   try {
     // Fill into Mocha
     unitTests.forEach((file): Mocha => {
-      console.log(`Adding file to Mocha: ${file}`);
       return unitMocha.addFile(paths.join(testsRoot, file));
     });
 
@@ -151,7 +143,6 @@ class CoverageRunner {
   }
 
   public setupCoverage(): void {
-    console.log(`Setting up coverage runner`);
     // Set up Code Coverage, hooking require so that instrumented code is returned
     const self = this;
     self.instrumenter = new istanbul.Instrumenter({ coverageVariable: self.coverageVar });
@@ -195,7 +186,6 @@ class CoverageRunner {
     // Hook the process exit event to handle reporting
     // Only report coverage if the process is exiting successfully
     process.on('exit', (code: number) => {
-      console.log(`Exit caught`);
       self.reportCoverage();
       process.exitCode = code;
     });
@@ -263,8 +253,6 @@ class CoverageRunner {
     const reporter = new istanbul.Reporter(undefined, reportingDir);
     const reportTypes = (self.options.reports instanceof Array) ? self.options.reports : ['lcov'];
     reporter.addAll(reportTypes);
-    reporter.write(remappedCollector, true, () => {
-      console.log(`reports written to ${reportingDir}`);
-    });
+    reporter.write(remappedCollector, true, () => { console.log(`Coverage report written to: ${reportingDir}`); });
   }
 }

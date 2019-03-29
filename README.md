@@ -21,6 +21,8 @@ The extension should be triggered automatically when loading `YAML` or `YML` fil
 
 To run it manually, open the command pallet and select "Cloud Formation YAML Validator: Validate YAML"
 
+To recursively search in sub stacks, open the command pallet and select "Cloud Formation YAML Validator: Validate YAML, recurse into sub stacks"
+
 ## Known Issues
 
 Known issues can be found here: https://github.com/champgm/cloudformation-yaml-validator/issues

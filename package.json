@@ -2,7 +2,7 @@
   "name": "cloudformation-yaml-validator",
   "displayName": "cloudformation-yaml-validator",
   "description": "A reference validator for AWS CloudFormation YAML files",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.32.0"
   },
@@ -21,7 +21,8 @@
   ],
   "activationEvents": [
     "onLanguage:yaml",
-    "onCommand:extension.cloudFormationYamlValidator"
+    "onCommand:extension.cloudFormationYamlValidator",
+    "onCommand:extension.cloudFormationYamlValidatorRecursive"
   ],
   "repository": {
     "type": "git",
@@ -36,6 +37,10 @@
       {
         "command": "extension.cloudFormationYamlValidator",
         "title": "Cloud Formation YAML Validator: Validate YAML"
+      },
+      {
+        "command": "extension.cloudFormationYamlValidatorRecursive",
+        "title": "Cloud Formation YAML Validator: Validate YAML, recurse into sub stacks"
       }
     ]
   },
@@ -46,7 +51,7 @@
     "build": "tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
     "postinstall": "node ./node_modules/vscode/bin/install",
-    "test": "npm run compile && node ./node_modules/vscode/bin/test",
+    "test": "npm run lint && npm run compile && node ./node_modules/vscode/bin/test",
     "test-dirty": "npm run build && node ./node_modules/vscode/bin/test",
     "lint": "tslint src/**/*.ts --fix",
     "publish-major": "vsce publish major",
