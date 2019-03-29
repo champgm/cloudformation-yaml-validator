@@ -35,9 +35,8 @@ export class CloudformationYaml {
     if (this.subscriptions.indexOf(this) < 0) {
       this.subscriptions.push(this);
     }
-    // vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, subscriptions);
+    vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, this.subscriptions);
     vscode.workspace.onDidOpenTextDocument(this.checkSingleYaml, this, this.subscriptions);
-    vscode.workspace.onDidCloseTextDocument(this.deleteDiagnostics, this, this.subscriptions);
     vscode.workspace.onDidSaveTextDocument(this.checkSingleYaml, this, this.subscriptions);
     vscode.workspace.onDidChangeTextDocument(this.checkSingleYaml, this, this.subscriptions);
   }
@@ -72,7 +71,9 @@ export class CloudformationYaml {
     recurse: boolean,
     isRoot: boolean,
   ): Promise<vscode.Diagnostic[]> {
-    if (this.urisCurrentlyBeingProcessed.indexOf(documentUri) > -1) {
+    const isCurrentlyBeingProcessed = this.urisCurrentlyBeingProcessed.indexOf(documentUri) > -1;
+    const doesNotExist = !fs.existsSync(filePath);
+    if (doesNotExist || isCurrentlyBeingProcessed) {
       return [];
     }
     try {
@@ -87,7 +88,6 @@ export class CloudformationYaml {
       this.buildInvalidSubStackParameterDiagnostics(fullText, documentUri, referenceables.subStackReferenceables, subStackNodePairs);
     } catch (error) {
       console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
-      // vscode.window.showErrorMessage(`${diagnosticCollectionName}: ${error.message}`);
     } finally {
       this.urisCurrentlyBeingProcessed.splice(this.urisCurrentlyBeingProcessed.indexOf(documentUri), 1);
     }
@@ -97,10 +97,6 @@ export class CloudformationYaml {
     return documentUri
       ? this.diagnosticCollection.get(documentUri) || []
       : [];
-  }
-
-  private deleteDiagnostics(textDocument: vscode.TextDocument) {
-    this.diagnosticCollection.delete(textDocument.uri);
   }
 
   private addDiagnostic(uri: vscode.Uri, newDiagnostic: vscode.Diagnostic) {
@@ -203,13 +199,12 @@ export class CloudformationYaml {
   ): Promise<SubStackReferenceables> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStackParameterReferenceablesMap = {};
-    // subStackNodePairs.forEach((nodePair) => {
     for (const nodePair of subStackNodePairs) {
       const properties = (nodePair.value as Node).get('Properties') as Node;
       const templateUrl = (properties as Node).get('TemplateURL');
       if (typeof templateUrl === 'string') {
         referenceableParameters[templateUrl] = [];
-        const filePath = `${parentPath}/${templateUrl}`;
+        const filePath = `${parentPath}${path.sep}${templateUrl}`;
         let document: any;
         try {
           const fileText = fs.readFileSync(filePath, 'utf8');
@@ -222,7 +217,7 @@ export class CloudformationYaml {
             const diagnostics = await this.checkYaml(fileText, documentUri, filePath, document, recurse, false);
             // If diagnostics for that file were generated, open it.
             if (diagnostics.length > 0) {
-              const textDocument = await vscode.workspace.openTextDocument(documentUri);
+              const textDocument = await vscode.workspace.openTextDocument(filePath);
               await vscode.window.showTextDocument(textDocument);
             }
           }
@@ -441,7 +436,6 @@ export class CloudformationYaml {
     documentUri: vscode.Uri,
     recurse: boolean,
   ): Promise<Referenceables> {
-    // const fullText = editor.document.getText();
     const document = YAML.parseDocument(documentText, { keepCstNodes: true });
 
     if (document.contents) {
@@ -454,7 +448,6 @@ export class CloudformationYaml {
 
       // Find sub stack referenceables, this will require work.
       const subStackNodePairs = this.findSubStackNodePairs(document);
-      // const rootFilePath = editor.document.fileName;
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const subStackReferenceables = await this.getSubStackReferenceables(documentText, documentUri, subStackNodePairs, parentPath, recurse);
 

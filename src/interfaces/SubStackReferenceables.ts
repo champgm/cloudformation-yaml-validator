@@ -3,4 +3,5 @@ import { SubStackParameterReferenceablesMap } from './SubStackParameterReference
 export interface SubStackReferenceables {
   outputs: string[];
   parameters: SubStackParameterReferenceablesMap;
+  // unreferenceableSubStacks: string[];
 }
