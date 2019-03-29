@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import clone from 'lodash.clonedeep';
 import fs from 'fs';
-import path from 'path';
 import get from 'lodash.get';
+import path from 'path';
 import YAML from 'yaml';
 
 import { createDiagnostic } from './common/Diagnostics';
@@ -18,10 +18,11 @@ import { SubStackReferenceables } from './interfaces/SubStackReferenceables';
 
 export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
-export class CloudformationYaml {
+export class CloudformationYaml implements vscode.Disposable {
   private diagnosticCollection: vscode.DiagnosticCollection;
   public urisCurrentlyBeingProcessed: vscode.Uri[] = [];
   private subscriptions: vscode.Disposable[] = [];
+  private allowEventTriggers: boolean = true;
 
   constructor() {
     this.diagnosticCollection = vscode.languages.createDiagnosticCollection(diagnosticCollectionName);
@@ -35,16 +36,19 @@ export class CloudformationYaml {
     if (this.subscriptions.indexOf(this) < 0) {
       this.subscriptions.push(this);
     }
-    vscode.window.onDidChangeActiveTextEditor(this.checkSingleYaml, this, this.subscriptions);
-    vscode.workspace.onDidOpenTextDocument(this.checkSingleYaml, this, this.subscriptions);
-    vscode.workspace.onDidSaveTextDocument(this.checkSingleYaml, this, this.subscriptions);
-    vscode.workspace.onDidChangeTextDocument(this.checkSingleYaml, this, this.subscriptions);
+    this.allowEventTriggers = false;
+    vscode.window.onDidChangeActiveTextEditor(this.eventTrigger, this, this.subscriptions);
+    vscode.workspace.onDidOpenTextDocument(this.eventTrigger, this, this.subscriptions);
+    vscode.workspace.onDidSaveTextDocument(this.eventTrigger, this, this.subscriptions);
+    vscode.workspace.onDidChangeTextDocument(this.eventTrigger, this, this.subscriptions);
   }
 
-  public deactivate() {
-    this.subscriptions.forEach((subscription) => {
-      subscription.dispose();
-    });
+  // Required to implement vscode.Disposable
+  public dispose() {
+    if (this.diagnosticCollection) {
+      this.diagnosticCollection.clear();
+      this.diagnosticCollection.dispose();
+    }
   }
 
   public async checkSingleYaml() {
@@ -72,10 +76,11 @@ export class CloudformationYaml {
     isRoot: boolean,
   ): Promise<vscode.Diagnostic[]> {
     const isCurrentlyBeingProcessed = this.urisCurrentlyBeingProcessed.indexOf(documentUri) > -1;
-    const doesNotExist = !fs.existsSync(filePath);
-    if (doesNotExist || isCurrentlyBeingProcessed) {
+    if (isCurrentlyBeingProcessed) {
       return [];
     }
+
+    this.diagnosticCollection.delete(documentUri);
     try {
       this.urisCurrentlyBeingProcessed.push(documentUri);
       // Build a list of referenceable stuff, open sub stack files if necessary
@@ -471,16 +476,26 @@ export class CloudformationYaml {
     };
   }
 
-  public dispose() {
-    if (this.diagnosticCollection) {
-      this.diagnosticCollection.clear();
-      this.diagnosticCollection.dispose();
+  // Used to make integration testing possible
+  // LOTS of interference from events, and `dispose`ing subscriptions doesn't seem to help
+  public async eventTrigger() {
+    if (this.allowEventTriggers) {
+      await this.checkSingleYaml();
     }
   }
 
-  public async reset() {
-    if (this.diagnosticCollection) {
-      await this.diagnosticCollection.clear();
+  // Used in integration testing
+  public async disableEventTriggers() {
+    this.allowEventTriggers = false;
+    for (const subscription of this.subscriptions) {
+      if (subscription !== this) {
+        await subscription.dispose();
+      }
     }
+  }
+
+  // Used in integration testing
+  public async resetDiagnostics() {
+    await this.diagnosticCollection.clear();
   }
 }

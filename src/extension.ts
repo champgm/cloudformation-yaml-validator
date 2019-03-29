@@ -9,9 +9,7 @@ export const cloudformationYaml: CloudformationYaml = new CloudformationYaml();
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
-  cloudformationYaml.reset();
   cloudformationYaml.activate(context);
-  await cloudformationYaml.checkActiveFile(false, true);
 
   // The command has been defined in the package.json file
   // Now provide the implementation of the command with registerCommand

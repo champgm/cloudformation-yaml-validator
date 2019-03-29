@@ -8,22 +8,24 @@ import * as assert from 'assert';
 import vscode from 'vscode';
 import path from 'path';
 
-import { cloudformationYaml } from '../src/extension';
+import { CloudformationYaml } from '../src/CloudformationYaml';
+// import { cloudformationYaml } from '../src/extension';
+// (cloudformationYaml as any).allowEventTriggers = false;
 
 describe('Extension Integration Tests', () => {
-  console.log(`Running Extension Integration Tests`);
   const backToProjectDirectory = '../..';
+  let cloudformationYaml: CloudformationYaml;
   beforeEach(async () => {
-    await cloudformationYaml.deactivate();
-    await cloudformationYaml.reset();
-    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    cloudformationYaml = require('../src/extension').cloudformationYaml;
+    (cloudformationYaml as any).allowEventTriggers = false;
+    await cloudformationYaml.disableEventTriggers();
+    await cloudformationYaml.resetDiagnostics();
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
   afterEach(async () => {
-    await cloudformationYaml.deactivate();
-    await cloudformationYaml.reset();
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    await cloudformationYaml.disableEventTriggers();
+    await cloudformationYaml.resetDiagnostics();
   });
 
   describe('Valid YAML files', () => {
@@ -55,15 +57,16 @@ describe('Extension Integration Tests', () => {
         'Unable to find referenced value, \'FirstParameter\'',
         'Unable to find referenced value, \'FourthParameter\'',
         'Unable to find referenced value, \'NonexistentSubstack\'',
+        'Unable to find referenced value, \'RefInJoin\'',
         'Unable to find referenced value, \'RefStack\'',
         'Unable to find referenced value, \'SecondParameter\'',
         'Unable to find referenced value, \'SingleQuoteStack\'',
         'Unable to find referenced value, \'SubInJoin\'',
-        'Unable to find referenced value, \'RefInJoin\'',
         'Unable to load or parse template file',
       ];
 
       const diagnostics = vscode.languages.getDiagnostics(uri);
+
       expectedMessages.forEach((message) => {
         findAndRemoveDiagnosticByMessage(message, diagnostics);
       });
