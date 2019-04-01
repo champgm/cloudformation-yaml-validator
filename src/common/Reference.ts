@@ -1,4 +1,4 @@
-import { ReferenceTypes } from '../common/ReferenceTypes';
+import { ReferenceTypes } from './ReferenceTypes';
 
 export interface Reference {
   type: ReferenceTypes;

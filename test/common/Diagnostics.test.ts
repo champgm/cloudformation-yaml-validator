@@ -1,6 +1,6 @@
 import vscode from 'vscode';
 import assert from 'assert';
-import { RowColumnPosition } from '../../src/interfaces/RowColumnPosition';
+import { RowColumnPosition } from '../../src/common/RowColumnPosition';
 import { createDiagnostic, createVsCodeRange } from '../../src/common/Diagnostics';
 
 import mocha from 'mocha';

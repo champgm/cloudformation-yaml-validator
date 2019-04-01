@@ -23,4 +23,4 @@ Parameters:
 Outputs:
   FirstOutput:
     Description: !Ref FirstParameter
-    Value: !Sub "${SecondParameter}-${ThirdParameter}-${FourthParameter}"
+    Value: !Sub "${SecondParameter}-${ThirdParameter}-${SixthParameter}"

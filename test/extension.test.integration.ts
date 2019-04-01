@@ -9,8 +9,6 @@ import vscode from 'vscode';
 import path from 'path';
 
 import { CloudformationYaml } from '../src/CloudformationYaml';
-// import { cloudformationYaml } from '../src/extension';
-// (cloudformationYaml as any).allowEventTriggers = false;
 
 describe('Extension Integration Tests', () => {
   const backToProjectDirectory = '../..';
@@ -33,7 +31,15 @@ describe('Extension Integration Tests', () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await cloudformationYaml.checkSingleYaml();
+      await cloudformationYaml.checkActiveFile(false, true);
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+      assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
+    });
+    it('Finds no diagnostics given valid yaml sub files', async () => {
+      const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/subfolder/test_substack.yml`));
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      await cloudformationYaml.checkActiveFile(false, true);
       const diagnostics = vscode.languages.getDiagnostics(uri);
       assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
     });
@@ -44,7 +50,7 @@ describe('Extension Integration Tests', () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await cloudformationYaml.checkSingleYaml();
+      await cloudformationYaml.checkActiveFile(false, true);
 
       const expectedMessages = [
         'Properties missing value for parameter with default value, \'FourthParameter\'',
@@ -63,6 +69,28 @@ describe('Extension Integration Tests', () => {
         'Unable to find referenced value, \'SingleQuoteStack\'',
         'Unable to find referenced value, \'SubInJoin\'',
         'Unable to load or parse template file',
+      ];
+
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+
+      expectedMessages.forEach((message) => {
+        findAndRemoveDiagnosticByMessage(message, diagnostics);
+      });
+      const remainingDiagnostics = diagnostics.map((diagnostic) => {
+        return diagnostic.message;
+      });
+      assert.deepEqual(0, diagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${JSON.stringify(remainingDiagnostics, null, 2)}`);
+    });
+
+    it('Finds diagnostics given invalid yaml sub files', async () => {
+      const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/subfolder/test_substack.yml`));
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      await cloudformationYaml.checkActiveFile(false, true);
+
+      const expectedMessages = [
+        'Unable to find referenced value, \'SecondParameter\'',
+        'Unable to find referenced value, \'SixthParameter\'',
       ];
 
       const diagnostics = vscode.languages.getDiagnostics(uri);
@@ -95,8 +123,3 @@ function getDiagnosticMessages(diagnostics: vscode.Diagnostic[]) {
     return diagnostic.message;
   });
 }
-
-// async function sleep(milliseconds?: number) {
-//   const time = milliseconds ? milliseconds : 100;
-//   await new Promise(resolve => setTimeout(resolve, time));
-// }

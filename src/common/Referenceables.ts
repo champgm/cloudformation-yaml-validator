@@ -1,9 +1,9 @@
-import { SubStackReferenceables } from './SubStackReferenceables';
+import { SubStack } from './SubStack';
 
 export interface Referenceables {
   conditions: string[];
   mappings: string[];
   parameters: string[];
   resources: string[];
-  subStackReferenceables: SubStackReferenceables;
+  subStackReferenceables: SubStack.Referenceables;
 }
