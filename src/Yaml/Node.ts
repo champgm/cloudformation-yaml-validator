@@ -68,38 +68,36 @@ export class Node implements YAML.ast.Node {
     });
   }
 
-  public getValueIfPair(): Node {
-    if (this.type !== NodeTypes.PAIR) {
-      return this;
+  // public getValueIfPair(): Node {
+  //   if (!(this instanceof NodePair)) {
+  //     return this;
+  //   }
+  //   // If this is a pair, get the value, otherwise just keep the node
+  //   const nodeValue = this.value;
+  //   // If the pair value doesn't have its own key, set it to the key of the pair
+  //   nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : this.stringKey;
+  //   return nodeValue;
+  // }
+
+  public getItemAsString(stringKey: string): string {
+    const node = this instanceof NodePair ? this.value : this;
+    const item = node.getValueByStringKey(stringKey);
+    if (typeof item.value === 'string') {
+      return item.value;
     }
-    // If this is a pair, get the value, otherwise just keep the node
-    const nodeValue = this.getNode('value');
-    // If the pair value doesn't have its own key, set it to the key of the pair
-    nodeValue.stringKey = nodeValue.stringKey ? nodeValue.stringKey : this.stringKey;
-    return nodeValue;
+    throw new Error(`Item ${stringKey} was not of type string: ${JSON.stringify(item)}`);
   }
 
-  public getNode(stringKey: string): Node {
-    if (!(this.astNode as any).get) {
-      throw new Error(`Node has no 'get' method: ${JSON.stringify(this)}`);
+  public getItemAsNode(stringKey: string): Node {
+    const node = this instanceof NodePair ? this.value : this;
+    const item = node.getValueByStringKey(stringKey);
+    if (item.value instanceof Node) {
+      return item.value;
     }
-    const got = (this.astNode as any).get(stringKey);
-    throw new Error(`Item with key, '${stringKey}' was not a node: ${JSON.stringify(this)}`);
-    return Node.create(got);
+    throw new Error(`Item ${stringKey} was not of type node: ${JSON.stringify(item)}`);
   }
 
-  public getString(stringKey: string): string {
-    if (!(this.astNode as any).get) {
-      throw new Error(`Node has no 'get' method: ${JSON.stringify(this)}`);
-    }
-    const got = (this.astNode as any).get(stringKey);
-    if (!got || typeof got !== 'string') {
-      throw new Error(`Item with key, '${stringKey}' was not a string: ${JSON.stringify(this)}`);
-    }
-    return got;
-  }
-
-  public getItemByStringKey(stringKey: string): Node {
+  private getValueByStringKey(stringKey: string): Node {
     const item = this.items.find((nodePair: Node) => {
       return nodePair.stringKey === stringKey;
     });
@@ -108,7 +106,10 @@ export class Node implements YAML.ast.Node {
 
   public toJSON() {
     const stringified = '{' +
-
+      '"type":' + `"${this.type}"` +
+      '"tag":' + `"${this.tag}"` +
+      '"stringKey":' + `"${this.stringKey}"` +
+      '"range":' + `"${this.range}"` +
       '}';
     return stringified;
   }

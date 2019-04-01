@@ -119,14 +119,15 @@ export class CloudformationYaml implements vscode.Disposable {
   }
 
   private async traverse(
-    injectedNode: Node,
+    // injectedNode: Node,
+    node: Node,
     fullText: string,
     filePath: string,
     documentUri: vscode.Uri,
     isRootNode: boolean,
     recurseSubStacks: boolean,
   ): Promise<NodeTraversal> {
-    const node = injectedNode.getValueIfPair();
+    // const node = injectedNode.getValueIfPair();
     let resultantTraversal = clone(NodeTraversal.EMPTY_TRAVERSAL);
     resultantTraversal.fullText = fullText;
     resultantTraversal.documentUri = documentUri;
@@ -137,15 +138,19 @@ export class CloudformationYaml implements vscode.Disposable {
 
     if (isRootNode) {
       resultantTraversal.localDefinitions = [
-        ...node.getItemByStringKey('Parameters').getValueIfPair().getKeys(),
-        ...node.getItemByStringKey('Conditions').getValueIfPair().getKeys(),
-        ...node.getItemByStringKey('Mappings').getValueIfPair().getKeys(),
-        ...node.getItemByStringKey('Resources').getValueIfPair().getKeys(),
+        // ...node.getItemByStringKey('Parameters').getValueIfPair().getKeys(),
+        // ...node.getItemByStringKey('Conditions').getValueIfPair().getKeys(),
+        // ...node.getItemByStringKey('Mappings').getValueIfPair().getKeys(),
+        // ...node.getItemByStringKey('Resources').getValueIfPair().getKeys(),
+        ...node.getItemAsNode('Parameters').getKeys(),
+        ...node.getItemAsNode('Conditions').getKeys(),
+        ...node.getItemAsNode('Mappings').getKeys(),
+        ...node.getItemAsNode('Resources').getKeys(),
       ];
     }
 
     // If this node is a sub stack, collect info about it
-    if (node.getString('Type') === 'AWS::CloudFormation::Stack') {
+    if (node.getItemAsString('Type') === 'AWS::CloudFormation::Stack') {
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const newReferenceables = await this.getSubStackReferenceables(fullText, documentUri, node, parentPath, recurseSubStacks);
       resultantTraversal.subStackDefinitions = SubStack.flattenDefinitions([resultantTraversal.subStackDefinitions, newReferenceables]);
@@ -219,7 +224,7 @@ export class CloudformationYaml implements vscode.Disposable {
   private buildDiagnostics(traversal: NodeTraversal) {
     traversal.nodesWhichReference.forEach((node) => {
       // If the node creates a sub stack from template...
-      if (node.getString('Type') === 'AWS::CloudFormation::Stack') {
+      if (node.getItemAsString('Type') === 'AWS::CloudFormation::Stack') {
         createDiagnosticsFromSubStackNode(node, traversal, this.diagnosticCollection);
       } else {
         createDiagnosticsFromReferencingNode(node, traversal, this.diagnosticCollection);
@@ -236,8 +241,8 @@ export class CloudformationYaml implements vscode.Disposable {
   ): Promise<SubStack.Definitions> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStack.ParameterReferenceablesMap = {};
-    const properties = subStackNode.getNode('Properties');
-    const templateUrl = properties.getString('TemplateURL');
+    const properties = subStackNode.getItemAsNode('Properties');
+    const templateUrl = properties.getItemAsString('TemplateURL');
     if (typeof templateUrl === 'string') {
       const filePath = `${parentPath}${path.sep}${templateUrl}`;
       try {
@@ -247,7 +252,7 @@ export class CloudformationYaml implements vscode.Disposable {
         const contents = Node.create(document.contents);
 
         // Build the list of referenceable Outputs
-        const outputs = contents.getNode('Outputs');
+        const outputs = contents.getItemAsNode('Outputs');
         const outputKeys = outputs.getKeys();
         outputKeys.forEach((key) => {
           referenceableOutputs.push(`${subStackNode.stringKey}.Outputs.${key}`);
@@ -258,7 +263,7 @@ export class CloudformationYaml implements vscode.Disposable {
         if (parameters && parameters.items) {
           parameters.items.forEach((item) => {
             if (item instanceof NodePair) {
-              const defaultValue = item.value.getString('Default');
+              const defaultValue = item.value.getItemAsString('Default');
               referenceableParameters[templateUrl].push({
                 parameterName: item.stringKey as string,
                 hasDefault: hasValue(defaultValue),
@@ -280,7 +285,7 @@ export class CloudformationYaml implements vscode.Disposable {
         }
       } catch (error) {
         // This error was almost certainly because the file couldn't be read or does not exist.
-        const templateUrlNodePair = properties.getItemByStringKey('TemplateURL');
+        const templateUrlNodePair = properties.getItemAsString('TemplateURL');
         const templateUrlNodeValue = templateUrlNodePair.value as Node;
         const templateUrl = templateUrlNodeValue.value as string;
         const position = getRowColumnPosition(fullText, templateUrlNodeValue.range[0]);
