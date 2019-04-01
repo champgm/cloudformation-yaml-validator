@@ -9,8 +9,6 @@ import vscode from 'vscode';
 import path from 'path';
 
 import { CloudformationYaml } from '../src/CloudformationYaml';
-// import { cloudformationYaml } from '../src/extension';
-// (cloudformationYaml as any).allowEventTriggers = false;
 
 describe('Extension Integration Tests', () => {
   const backToProjectDirectory = '../..';

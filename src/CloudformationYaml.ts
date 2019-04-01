@@ -135,16 +135,6 @@ export class CloudformationYaml implements vscode.Disposable {
       return resultantTraversal;
     }
 
-    // if (isRootNode) {
-    //   const resourcesNode = getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'));
-    //   resultantTraversal.parameters = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters')));
-    //   resultantTraversal.conditions = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions')));
-    //   resultantTraversal.mappings = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings')));
-    //   resultantTraversal.resources = getYamlNodeKeys(resourcesNode);
-    //   const resourcesTraversal = await this.traverse(resourcesNode, fullText, filePath, documentUri, false, recurseSubStacks);
-    //   const subTraversal = await this.traverse(resourcesNode, fullText, filePath, documentUri, false, recurseSubStacks);
-    //   return NodeTraversal.flatten([resultantTraversal, subTraversal]);
-    // }
     if (isRootNode) {
       resultantTraversal.localReferenceables = [
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
@@ -246,7 +236,6 @@ export class CloudformationYaml implements vscode.Disposable {
   ): Promise<SubStack.Referenceables> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStack.ParameterReferenceablesMap = {};
-    // const properties = (subStackNodePair.value as Node).get('Properties') as Node;
     const properties = subStackNode.get('Properties') as Node;
     const templateUrl = (properties as Node).get('TemplateURL');
     if (typeof templateUrl === 'string') {

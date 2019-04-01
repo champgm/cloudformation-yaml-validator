@@ -6,22 +6,14 @@ import { cloneDeep } from 'lodash';
 export interface NodeTraversal {
   fullText: string;
   documentUri: vscode.Uri;
-  // conditions: string[];
-  // mappings: string[];
   nodesWhichReference: Node[];
-  // parameters: string[];
-  // resources: string[];
   localReferenceables: string[];
   subStackReferenceables: SubStack.Referenceables;
 }
 
 export namespace NodeTraversal {
   export const EMPTY_TRAVERSAL: NodeTraversal = {
-    // conditions: [],
-    // mappings: [],
     nodesWhichReference: [],
-    // parameters: [],
-    // resources: [],
     localReferenceables: [],
     subStackReferenceables: { outputs: [], parameters: {} },
     fullText: '',
@@ -34,26 +26,10 @@ export namespace NodeTraversal {
         ...flattenedTraversal.localReferenceables,
         ...nodeTraversal.localReferenceables,
       ];
-      // flattenedTraversal.conditions = [
-      //   ...flattenedTraversal.conditions,
-      //   ...nodeTraversal.conditions,
-      // ];
-      // flattenedTraversal.mappings = [
-      //   ...flattenedTraversal.mappings,
-      //   ...nodeTraversal.mappings,
-      // ];
       flattenedTraversal.nodesWhichReference = [
         ...flattenedTraversal.nodesWhichReference,
         ...nodeTraversal.nodesWhichReference,
       ];
-      // flattenedTraversal.parameters = [
-      //   ...flattenedTraversal.parameters,
-      //   ...nodeTraversal.parameters,
-      // ];
-      // flattenedTraversal.resources = [
-      //   ...flattenedTraversal.resources,
-      //   ...nodeTraversal.resources,
-      // ];
       flattenedTraversal.subStackReferenceables = SubStack.flattenReferenceables([flattenedTraversal.subStackReferenceables, nodeTraversal.subStackReferenceables]);
       flattenedTraversal.fullText = nodeTraversal.fullText;
       flattenedTraversal.documentUri = nodeTraversal.documentUri;

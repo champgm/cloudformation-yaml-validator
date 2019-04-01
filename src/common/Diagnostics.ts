@@ -32,11 +32,6 @@ export function createDiagnosticsFromReferencingNode(
   traversal: NodeTraversal,
   diagnosticCollection: vscode.DiagnosticCollection,
 ) {
-  // const localReferenceables = traversal.conditions
-  //   .concat(traversal.mappings)
-  //   .concat(traversal.parameters)
-  //   .concat(traversal.resources);
-
   // If the node has explicit references listed, check those references and create diagnostics as necessary
   node.references.forEach((reference) => {
     // This might reference a stack output. If so, save that tidbit for later.
