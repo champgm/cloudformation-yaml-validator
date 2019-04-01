@@ -135,14 +135,23 @@ export class CloudformationYaml implements vscode.Disposable {
       return resultantTraversal;
     }
 
+    // if (isRootNode) {
+    //   const resourcesNode = getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'));
+    //   resultantTraversal.parameters = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters')));
+    //   resultantTraversal.conditions = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions')));
+    //   resultantTraversal.mappings = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings')));
+    //   resultantTraversal.resources = getYamlNodeKeys(resourcesNode);
+    //   const resourcesTraversal = await this.traverse(resourcesNode, fullText, filePath, documentUri, false, recurseSubStacks);
+    //   const subTraversal = await this.traverse(resourcesNode, fullText, filePath, documentUri, false, recurseSubStacks);
+    //   return NodeTraversal.flatten([resultantTraversal, subTraversal]);
+    // }
     if (isRootNode) {
-      const resourcesNode = getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'));
-      resultantTraversal.parameters = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters')));
-      resultantTraversal.conditions = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions')));
-      resultantTraversal.mappings = getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings')));
-      resultantTraversal.resources = getYamlNodeKeys(resourcesNode);
-      const subTraversal = await this.traverse(resourcesNode, fullText, filePath, documentUri, false, recurseSubStacks);
-      return NodeTraversal.flatten([resultantTraversal, subTraversal]);
+      resultantTraversal.localReferenceables = [
+        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
+        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions'))),
+        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings'))),
+        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'))),
+      ];
     }
 
     // If this node is a sub stack, collect info about it
@@ -158,19 +167,31 @@ export class CloudformationYaml implements vscode.Disposable {
       // Handle nodes without a tag, these are probably first members of an !If or !FindInMap
       const nodeTag = node.tag || node.stringKey;
       if (nodeTag === '!If' || nodeTag === '!FindInMap' || nodeTag === 'DependsOn') {
-        resultantTraversal.nodesWhichReference = resultantTraversal.nodesWhichReference.concat(References.addToIfFindInMapDependsOn(node, nodeTag));
+        resultantTraversal.nodesWhichReference = [
+          ...resultantTraversal.nodesWhichReference,
+          ...References.addToIfFindInMapDependsOn(node, nodeTag),
+        ];
       }
 
       if (nodeTag === '!GetAtt') {
-        resultantTraversal.nodesWhichReference = resultantTraversal.nodesWhichReference.concat(References.addToGetAtt(node));
+        resultantTraversal.nodesWhichReference = [
+          ...resultantTraversal.nodesWhichReference,
+          ...References.addToGetAtt(node),
+        ];
       }
 
       if (nodeTag === '!Ref') {
-        resultantTraversal.nodesWhichReference = resultantTraversal.nodesWhichReference.concat(References.addToRef(node));
+        resultantTraversal.nodesWhichReference = [
+          ...resultantTraversal.nodesWhichReference,
+          ...References.addToRef(node),
+        ];
       }
 
       if (nodeTag === '!Sub') {
-        resultantTraversal.nodesWhichReference = resultantTraversal.nodesWhichReference.concat(References.addToSub(node));
+        resultantTraversal.nodesWhichReference = [
+          ...resultantTraversal.nodesWhichReference,
+          ...References.addToSub(node),
+        ];
       }
     }
 

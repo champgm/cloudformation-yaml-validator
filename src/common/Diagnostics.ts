@@ -32,10 +32,10 @@ export function createDiagnosticsFromReferencingNode(
   traversal: NodeTraversal,
   diagnosticCollection: vscode.DiagnosticCollection,
 ) {
-  const localReferenceables = traversal.conditions
-    .concat(traversal.mappings)
-    .concat(traversal.parameters)
-    .concat(traversal.resources);
+  // const localReferenceables = traversal.conditions
+  //   .concat(traversal.mappings)
+  //   .concat(traversal.parameters)
+  //   .concat(traversal.resources);
 
   // If the node has explicit references listed, check those references and create diagnostics as necessary
   node.references.forEach((reference) => {
@@ -48,7 +48,7 @@ export function createDiagnosticsFromReferencingNode(
       if (keyPieces.length > 1) {
         // If that's the case, just check to make sure the resource exists.
         const referencedResource = keyPieces[0];
-        if (localReferenceables.indexOf(referencedResource) < 0) {
+        if (traversal.localReferenceables.indexOf(referencedResource) < 0) {
           const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
           const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
           const diagnostic = createDiagnostic(position, referencedResource.length, vscode.DiagnosticSeverity.Error, message);
@@ -72,7 +72,7 @@ export function createDiagnosticsFromReferencingNode(
     }
 
     // Otherwise, check local referenceables, this encompasses all !Ref, !Sub, !FindInMap, and !If types
-    if (localReferenceables.indexOf(reference.referencedKey) < 0) {
+    if (traversal.localReferenceables.indexOf(reference.referencedKey) < 0) {
       const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
       const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
       const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
