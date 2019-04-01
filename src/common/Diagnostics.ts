@@ -2,7 +2,6 @@ import vscode from 'vscode';
 import clone from 'lodash.clonedeep';
 
 import { RowColumnPosition, getRowColumnPosition } from './RowColumnPosition';
-import { getNodeValueIfPair, getNodeItemByStringKey } from '../Yaml';
 import { Node } from '../Yaml/Node';
 import { NodeTraversal } from '../Yaml/NodeTraversal';
 import { ReferenceTypes } from './ReferenceTypes';
@@ -80,13 +79,12 @@ export function createDiagnosticsFromSubStackNode(
   node: Node,
   traversal: NodeTraversal,
   diagnosticCollection: vscode.DiagnosticCollection) {
-  const properties = getNodeValueIfPair(getNodeItemByStringKey(node, 'Properties'));
-
+  const properties = node.getItemByStringKey('Properties').getValueIfPair();
   // Get the template URL and matching parameters for the sub stack
-  const templateUrl = properties.get('TemplateURL');
+  const templateUrl = properties.getString('TemplateURL');
   if (typeof templateUrl === 'string') {
     // Get the parameters used and the referenceable parameters (make a clone, we wil edit this list)
-    const parameters = getNodeValueIfPair(getNodeItemByStringKey(properties, 'Parameters'));
+    const parameters = properties.getItemByStringKey('Parameters').getValueIfPair();
 
     const referenceableParameters = clone(traversal.subStackDefinitions.parameters[templateUrl]) || [];
 
@@ -100,7 +98,7 @@ export function createDiagnosticsFromSubStackNode(
         referenceableParameters.splice(referenceableParameters.indexOf(matchingParameter), 1);
       } else {
         // Otherwise, there's a reference to a parameter which does not exist, let's make a diagnostic.
-        const keyNode = parameterPair.key;
+        const keyNode = parameterPair.key as Node;
         const position = getRowColumnPosition(traversal.fullText, keyNode.range[0]);
         const stringKey = parameterPair.stringKey as string;
         const diagnostic = createDiagnostic(
@@ -116,9 +114,9 @@ export function createDiagnosticsFromSubStackNode(
     // Now that that's done, let's look at the parameters which were not referenced
     // Some might have default values, and that's fine, but a warning might be helpful
     if (referenceableParameters.length > 0) {
-      const propertiesPair = getNodeItemByStringKey(properties, 'Parameters');
+      const propertiesPair = properties.getItemByStringKey('Parameters');
       if (!propertiesPair) return;
-      const propertiesPosition = getRowColumnPosition(traversal.fullText, propertiesPair.key.range[0]);
+      const propertiesPosition = getRowColumnPosition(traversal.fullText, (propertiesPair.key as Node).range[0]);
       referenceableParameters.forEach((referenceableParameter) => {
         const message = referenceableParameter.hasDefault
           ? `Properties missing value for parameter with default value, '${referenceableParameter.parameterName}'`

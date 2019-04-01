@@ -5,8 +5,8 @@ import path from 'path';
 import YAML from 'yaml';
 
 import { createDiagnostic, createDiagnosticsFromSubStackNode, createDiagnosticsFromReferencingNode, addDiagnostic } from './common/Diagnostics';
-import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey, EmptyNode } from './Yaml';
-import { Node } from './Yaml/Node';
+// import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey, EmptyNode } from './Yaml';
+import { Node, NodePair } from './Yaml/Node';
 import { NodeTypes } from './Yaml/NodeTypes';
 import { revealAllProperties, hasValue } from './common';
 import { getRowColumnPosition } from './common/RowColumnPosition';
@@ -105,7 +105,7 @@ export class CloudformationYaml implements vscode.Disposable {
     this.diagnosticCollection.delete(documentUri);
     try {
       this.urisCurrentlyBeingProcessed.push(documentUri);
-      const fullTraversal = await this.traverse((document.contents as Node), fullText, filePath, documentUri, isRoot, recurse);
+      const fullTraversal = await this.traverse(Node.create(document.contents), fullText, filePath, documentUri, isRoot, recurse);
       this.buildDiagnostics(fullTraversal);
     } catch (error) {
       console.error(`${diagnosticCollectionName} encountered an error: ${JSON.stringify(revealAllProperties(error))}`);
@@ -126,26 +126,26 @@ export class CloudformationYaml implements vscode.Disposable {
     isRootNode: boolean,
     recurseSubStacks: boolean,
   ): Promise<NodeTraversal> {
-    const node = getNodeValueIfPair(injectedNode);
+    const node = injectedNode.getValueIfPair();
     let resultantTraversal = clone(NodeTraversal.EMPTY_TRAVERSAL);
     resultantTraversal.fullText = fullText;
     resultantTraversal.documentUri = documentUri;
 
-    if (!node || node === EmptyNode.EMPTY_NODE) {
+    if (!node || node === Node.EMPTY_NODE) {
       return resultantTraversal;
     }
 
     if (isRootNode) {
       resultantTraversal.localDefinitions = [
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'))),
+        ...node.getItemByStringKey('Parameters').getValueIfPair().getKeys(),
+        ...node.getItemByStringKey('Conditions').getValueIfPair().getKeys(),
+        ...node.getItemByStringKey('Mappings').getValueIfPair().getKeys(),
+        ...node.getItemByStringKey('Resources').getValueIfPair().getKeys(),
       ];
     }
 
     // If this node is a sub stack, collect info about it
-    if (node.get && node.get('Type') === 'AWS::CloudFormation::Stack') {
+    if (node.getString('Type') === 'AWS::CloudFormation::Stack') {
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const newReferenceables = await this.getSubStackReferenceables(fullText, documentUri, node, parentPath, recurseSubStacks);
       resultantTraversal.subStackDefinitions = SubStack.flattenDefinitions([resultantTraversal.subStackDefinitions, newReferenceables]);
@@ -219,7 +219,7 @@ export class CloudformationYaml implements vscode.Disposable {
   private buildDiagnostics(traversal: NodeTraversal) {
     traversal.nodesWhichReference.forEach((node) => {
       // If the node creates a sub stack from template...
-      if (node.get && node.get('Type') === 'AWS::CloudFormation::Stack') {
+      if (node.getString('Type') === 'AWS::CloudFormation::Stack') {
         createDiagnosticsFromSubStackNode(node, traversal, this.diagnosticCollection);
       } else {
         createDiagnosticsFromReferencingNode(node, traversal, this.diagnosticCollection);
@@ -236,18 +236,19 @@ export class CloudformationYaml implements vscode.Disposable {
   ): Promise<SubStack.Definitions> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStack.ParameterReferenceablesMap = {};
-    const properties = subStackNode.get('Properties') as Node;
-    const templateUrl = (properties as Node).get('TemplateURL');
+    const properties = subStackNode.getNode('Properties');
+    const templateUrl = properties.getString('TemplateURL');
     if (typeof templateUrl === 'string') {
       const filePath = `${parentPath}${path.sep}${templateUrl}`;
       try {
         referenceableParameters[templateUrl] = [];
         const fileText = fs.readFileSync(filePath, 'utf8');
         const document: any = YAML.parseDocument(fileText, { keepCstNodes: true });
+        const contents = Node.create(document.contents);
 
         // Build the list of referenceable Outputs
-        const outputs = document.contents.get('Outputs');
-        const outputKeys = getYamlNodeKeys(outputs);
+        const outputs = contents.getNode('Outputs');
+        const outputKeys = outputs.getKeys();
         outputKeys.forEach((key) => {
           referenceableOutputs.push(`${subStackNode.stringKey}.Outputs.${key}`);
         });
@@ -256,8 +257,8 @@ export class CloudformationYaml implements vscode.Disposable {
         const parameters: Node = document.contents.get('Parameters');
         if (parameters && parameters.items) {
           parameters.items.forEach((item) => {
-            if (item.type === NodeTypes.PAIR && item.value && !(typeof item.value === 'string')) {
-              const defaultValue = item.value.get('Default');
+            if (item instanceof NodePair) {
+              const defaultValue = item.value.getString('Default');
               referenceableParameters[templateUrl].push({
                 parameterName: item.stringKey as string,
                 hasDefault: hasValue(defaultValue),
@@ -279,7 +280,7 @@ export class CloudformationYaml implements vscode.Disposable {
         }
       } catch (error) {
         // This error was almost certainly because the file couldn't be read or does not exist.
-        const templateUrlNodePair = getNodeItemByStringKey(properties, 'TemplateURL');
+        const templateUrlNodePair = properties.getItemByStringKey('TemplateURL');
         const templateUrlNodeValue = templateUrlNodePair.value as Node;
         const templateUrl = templateUrlNodeValue.value as string;
         const position = getRowColumnPosition(fullText, templateUrlNodeValue.range[0]);

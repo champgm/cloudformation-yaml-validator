@@ -52,7 +52,7 @@ export namespace References {
   }
 
   export function addToIfFindInMapDependsOn(nodeValue: Node, nodeTag: string): Node[] {
-    const referencedKey = nodeValue.value as string;
+    const referencedKey:string = nodeValue.value as string;
     if (!referencedKey.startsWith('AWS::')) {
       nodeValue.references = [{
         referencedKey,
