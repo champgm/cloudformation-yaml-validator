@@ -43,7 +43,7 @@ export function createDiagnosticsFromReferencingNode(
       if (keyPieces.length > 1) {
         // If that's the case, just check to make sure the resource exists.
         const referencedResource = keyPieces[0];
-        if (traversal.localReferenceables.indexOf(referencedResource) < 0) {
+        if (traversal.localDefinitions.indexOf(referencedResource) < 0) {
           const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
           const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
           const diagnostic = createDiagnostic(position, referencedResource.length, vscode.DiagnosticSeverity.Error, message);
@@ -56,7 +56,7 @@ export function createDiagnosticsFromReferencingNode(
     // If it's a !GetAtt reference
     if (reference.type === ReferenceTypes.GET_ATT) {
       // Check sub stack outputs if it's an outputs reference
-      const noMatchingSubStackOutput = traversal.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0;
+      const noMatchingSubStackOutput = traversal.subStackDefinitions.outputs.indexOf(reference.referencedKey) < 0;
       if (referencesAnOutput && noMatchingSubStackOutput) {
         const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
         const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
@@ -67,7 +67,7 @@ export function createDiagnosticsFromReferencingNode(
     }
 
     // Otherwise, check local referenceables, this encompasses all !Ref, !Sub, !FindInMap, and !If types
-    if (traversal.localReferenceables.indexOf(reference.referencedKey) < 0) {
+    if (traversal.localDefinitions.indexOf(reference.referencedKey) < 0) {
       const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
       const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
       const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
@@ -88,7 +88,7 @@ export function createDiagnosticsFromSubStackNode(
     // Get the parameters used and the referenceable parameters (make a clone, we wil edit this list)
     const parameters = getNodeValueIfPair(getNodeItemByStringKey(properties, 'Parameters'));
 
-    const referenceableParameters = clone(traversal.subStackReferenceables.parameters[templateUrl]) || [];
+    const referenceableParameters = clone(traversal.subStackDefinitions.parameters[templateUrl]) || [];
 
     // Iterate over each of the current file's parameter references and create diagnostics if necessary
     parameters.items.forEach((parameterPair) => {

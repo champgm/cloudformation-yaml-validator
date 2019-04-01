@@ -13,6 +13,7 @@
       "get",
       "keys",
       "recursing",
-      "unreferncable"
+      "unreferncable",
+      "vsce"
     ],
 }

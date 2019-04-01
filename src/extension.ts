@@ -14,14 +14,19 @@ export async function activate(context: vscode.ExtensionContext) {
   // The command has been defined in the package.json file
   // Now provide the implementation of the command with registerCommand
   // The commandId parameter must match the command field in package.json
-  const disposable1 = vscode.commands.registerCommand('extension.cloudFormationYamlValidator', async () => {
+  const validatorCommandDisposable = vscode.commands.registerCommand('extension.cloudFormationYamlValidator', async () => {
     await cloudformationYaml.checkActiveFile(false, true);
   });
-  context.subscriptions.push(disposable1);
-  const disposable2 = vscode.commands.registerCommand('extension.cloudFormationYamlValidatorRecursive', async () => {
+  context.subscriptions.push(validatorCommandDisposable);
+  const recursiveCommandDisposable = vscode.commands.registerCommand('extension.cloudFormationYamlValidatorRecursive', async () => {
     await cloudformationYaml.checkActiveFile(true, true);
   });
-  context.subscriptions.push(disposable2);
+  context.subscriptions.push(recursiveCommandDisposable);
+
+  // Ok let's try to provide definition jumps
+  // const selector: vscode.DocumentSelector = { language: 'yaml' };
+  // const definitionProviderDisposable = vscode.languages.registerDefinitionProvider(selector);
+  // context.subscriptions.push(definitionProviderDisposable);
 }
 
 // this method is called when your extension is deactivated

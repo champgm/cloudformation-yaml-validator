@@ -8,13 +8,13 @@ export namespace SubStack {
     [templateUrl: string]: ParameterReferenceable[];
   }
 
-  export interface Referenceables {
+  export interface Definitions {
     outputs: string[];
     parameters: ParameterReferenceablesMap;
   }
 
-  export function flattenReferenceables(allReferenceables: Referenceables[]): Referenceables {
-    const resultantReferenceables: Referenceables = {
+  export function flattenDefinitions(allReferenceables: Definitions[]): Definitions {
+    const resultantReferenceables: Definitions = {
       outputs: [],
       parameters: {},
     };

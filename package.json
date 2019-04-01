@@ -42,7 +42,10 @@
         "command": "extension.cloudFormationYamlValidatorRecursive",
         "title": "Cloud Formation YAML Validator: Validate YAML, recurse into sub stacks"
       }
-    ]
+    ],
+    "capabilities": {
+      "definitionProvider": "true"
+    }
   },
   "scripts": {
     "postinstall": "node ./node_modules/vscode/bin/install",

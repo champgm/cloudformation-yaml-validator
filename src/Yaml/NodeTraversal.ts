@@ -7,30 +7,33 @@ export interface NodeTraversal {
   fullText: string;
   documentUri: vscode.Uri;
   nodesWhichReference: Node[];
-  localReferenceables: string[];
-  subStackReferenceables: SubStack.Referenceables;
+  localDefinitions: string[];
+  subStackDefinitions: SubStack.Definitions;
 }
 
 export namespace NodeTraversal {
   export const EMPTY_TRAVERSAL: NodeTraversal = {
     nodesWhichReference: [],
-    localReferenceables: [],
-    subStackReferenceables: { outputs: [], parameters: {} },
+    localDefinitions: [],
+    subStackDefinitions: { outputs: [], parameters: {} },
     fullText: '',
-    documentUri: undefined as any,
+    documentUri: vscode.Uri.parse(''),
   };
   export function flatten(nodeTraversal: NodeTraversal[]) {
     const flattenedTraversal = clone(NodeTraversal.EMPTY_TRAVERSAL);
     nodeTraversal.forEach((nodeTraversal) => {
-      flattenedTraversal.localReferenceables = [
-        ...flattenedTraversal.localReferenceables,
-        ...nodeTraversal.localReferenceables,
+      flattenedTraversal.localDefinitions = [
+        ...flattenedTraversal.localDefinitions,
+        ...nodeTraversal.localDefinitions,
       ];
       flattenedTraversal.nodesWhichReference = [
         ...flattenedTraversal.nodesWhichReference,
         ...nodeTraversal.nodesWhichReference,
       ];
-      flattenedTraversal.subStackReferenceables = SubStack.flattenReferenceables([flattenedTraversal.subStackReferenceables, nodeTraversal.subStackReferenceables]);
+      flattenedTraversal.subStackDefinitions = SubStack.flattenDefinitions([
+        flattenedTraversal.subStackDefinitions,
+        nodeTraversal.subStackDefinitions,
+      ]);
       flattenedTraversal.fullText = nodeTraversal.fullText;
       flattenedTraversal.documentUri = nodeTraversal.documentUri;
     });

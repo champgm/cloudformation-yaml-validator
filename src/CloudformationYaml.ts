@@ -136,7 +136,7 @@ export class CloudformationYaml implements vscode.Disposable {
     }
 
     if (isRootNode) {
-      resultantTraversal.localReferenceables = [
+      resultantTraversal.localDefinitions = [
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions'))),
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings'))),
@@ -148,7 +148,7 @@ export class CloudformationYaml implements vscode.Disposable {
     if (node.get && node.get('Type') === 'AWS::CloudFormation::Stack') {
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const newReferenceables = await this.getSubStackReferenceables(fullText, documentUri, node, parentPath, recurseSubStacks);
-      resultantTraversal.subStackReferenceables = SubStack.flattenReferenceables([resultantTraversal.subStackReferenceables, newReferenceables]);
+      resultantTraversal.subStackDefinitions = SubStack.flattenDefinitions([resultantTraversal.subStackDefinitions, newReferenceables]);
       resultantTraversal.nodesWhichReference.push(node);
     }
 
@@ -233,7 +233,7 @@ export class CloudformationYaml implements vscode.Disposable {
     subStackNode: Node,
     parentPath: string,
     recurse: boolean,
-  ): Promise<SubStack.Referenceables> {
+  ): Promise<SubStack.Definitions> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStack.ParameterReferenceablesMap = {};
     const properties = subStackNode.get('Properties') as Node;
