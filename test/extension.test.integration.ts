@@ -33,7 +33,7 @@ describe('Extension Integration Tests', () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/valid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await cloudformationYaml.checkSingleYaml();
+      await cloudformationYaml.checkActiveFile(false, true);
       const diagnostics = vscode.languages.getDiagnostics(uri);
       assert.deepEqual(diagnostics.length, 0, `Diagnostics array should be empty: ${JSON.stringify(diagnostics)}`);
     });
@@ -44,7 +44,7 @@ describe('Extension Integration Tests', () => {
       const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
-      await cloudformationYaml.checkSingleYaml();
+      await cloudformationYaml.checkActiveFile(false, true);
 
       const expectedMessages = [
         'Properties missing value for parameter with default value, \'FourthParameter\'',
@@ -95,8 +95,3 @@ function getDiagnosticMessages(diagnostics: vscode.Diagnostic[]) {
     return diagnostic.message;
   });
 }
-
-// async function sleep(milliseconds?: number) {
-//   const time = milliseconds ? milliseconds : 100;
-//   await new Promise(resolve => setTimeout(resolve, time));
-// }

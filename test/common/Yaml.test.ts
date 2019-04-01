@@ -1,8 +1,8 @@
-import { EmptyNode, getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey } from '../../src/common/Yaml';
+import { EmptyNode, getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey } from '../../src/Yaml';
 
 import mocha from 'mocha';
 import assert = require('assert');
-import { NodeTypes } from '../../src/common/NodeTypes';
+import { NodeTypes } from '../../src/Yaml/NodeTypes';
 const describe = (mocha as any).describe;
 const it = (mocha as any).it;
 

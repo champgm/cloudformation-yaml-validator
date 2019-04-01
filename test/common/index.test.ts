@@ -1,9 +1,9 @@
 import fs from 'fs';
-import { revealAllProperties, flattenArray, getRowColumnPosition } from '../../src/common';
+import { revealAllProperties, flattenArray } from '../../src/common';
 import assert from 'assert';
 
 import mocha from 'mocha';
-import { RowColumnPosition } from '../../src/interfaces/RowColumnPosition';
+import { RowColumnPosition } from '../../src/common/RowColumnPosition';
 const describe = (mocha as any).describe;
 const it = (mocha as any).it;
 
@@ -58,11 +58,5 @@ describe('common', () => {
       const flattened = flattenArray(arrayArray);
       assert.deepEqual(flattened, ['a', 's', 'd', 'f']);
     });
-  });
-  describe('getRowColumnPosition', () => {
-    const validYamlText = fs.readFileSync(`${__dirname}/../../../test/resources/valid_yaml/test.yml`).toString();
-    const rowColumnPosition = getRowColumnPosition(validYamlText, 200);
-    const expectedRowColumnPosition: RowColumnPosition = { column: 1, line: 11 };
-    assert.deepEqual(rowColumnPosition, expectedRowColumnPosition);
   });
 });

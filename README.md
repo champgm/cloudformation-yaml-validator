@@ -13,7 +13,7 @@ Here are some things this extension will warn you about:
  * `!FindInMap`s referencing maps that do not exist
  * `AWS::CloudFormation::Stack` parameters (with and without default values) missing values
 
-![image](https://user-images.githubusercontent.com/2091382/54885220-38df0180-4e50-11e9-9340-bf7cc1a4d966.png)
+![image](https://user-images.githubusercontent.com/2091382/55330598-6be05100-545f-11e9-9bef-a1f9b6b89b86.png)
 
 ## Triggers
 
