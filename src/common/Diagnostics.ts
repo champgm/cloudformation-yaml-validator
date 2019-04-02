@@ -79,12 +79,12 @@ export function createDiagnosticsFromSubStackNode(
   node: Node,
   traversal: NodeTraversal,
   diagnosticCollection: vscode.DiagnosticCollection) {
-  const properties = node.getItemByStringKey('Properties').getValueIfPair();
+  const properties = node.getItemAsNode('Properties');
   // Get the template URL and matching parameters for the sub stack
-  const templateUrl = properties.getString('TemplateURL');
+  const templateUrl = properties.getItemAsString('TemplateURL');
   if (typeof templateUrl === 'string') {
     // Get the parameters used and the referenceable parameters (make a clone, we wil edit this list)
-    const parameters = properties.getItemByStringKey('Parameters').getValueIfPair();
+    const parameters = properties.getItemAsNode('Parameters');
 
     const referenceableParameters = clone(traversal.subStackDefinitions.parameters[templateUrl]) || [];
 
@@ -114,7 +114,7 @@ export function createDiagnosticsFromSubStackNode(
     // Now that that's done, let's look at the parameters which were not referenced
     // Some might have default values, and that's fine, but a warning might be helpful
     if (referenceableParameters.length > 0) {
-      const propertiesPair = properties.getItemByStringKey('Parameters');
+      const propertiesPair = properties.getItemAsNode('Parameters');
       if (!propertiesPair) return;
       const propertiesPosition = getRowColumnPosition(traversal.fullText, (propertiesPair.key as Node).range[0]);
       referenceableParameters.forEach((referenceableParameter) => {

@@ -58,7 +58,7 @@ export class Node implements YAML.ast.Node {
         this.value = Node.create(yamlNode.value);
       }
     } else {
-      this.value = '';
+      this.value = this;
     }
   }
 
@@ -79,14 +79,42 @@ export class Node implements YAML.ast.Node {
   //   return nodeValue;
   // }
 
+  //Need to be recusrisve...
   public getItemAsString(stringKey: string): string {
-    const node = this instanceof NodePair ? this.value : this;
-    const item = node.getValueByStringKey(stringKey);
-    if (typeof item.value === 'string') {
-      return item.value;
+    let node = this instanceof NodePair ? this.value : this;
+    while (node instanceof NodePair) {
+      node = node.value;
     }
-    throw new Error(`Item ${stringKey} was not of type string: ${JSON.stringify(item)}`);
+    while (node.type===NodeTypes.MAP) {
+      node = node.getValueByStringKey(stringKey);
+    }
+    // const item = node.getValueByStringKey(stringKey);
+    if (typeof node.value === 'string') {
+      return node.value;
+    }
+    if (node.type === NodeTypes.EMPTY) {
+      return '';
+    }
+    throw new Error(`Item ${stringKey} was not of type string: ${JSON.stringify(node)}`);
   }
+
+  // public getItemAsString(stringKey: string): string {
+  //   let node = this instanceof NodePair ? this.value : this;
+  //   while (node instanceof NodePair) {
+  //     node = node.value;
+  //   }
+  //   while (node.type===NodeTypes.MAP) {
+  //     node = node.getValueByStringKey(stringKey);
+  //   }
+  //   // const item = node.getValueByStringKey(stringKey);
+  //   if (typeof node.value === 'string') {
+  //     return node.value;
+  //   }
+  //   if (node.type === NodeTypes.EMPTY) {
+  //     return '';
+  //   }
+  //   throw new Error(`Item ${stringKey} was not of type string: ${JSON.stringify(node)}`);
+  // }
 
   public getItemAsNode(stringKey: string): Node {
     const node = this instanceof NodePair ? this.value : this;
@@ -95,6 +123,14 @@ export class Node implements YAML.ast.Node {
       return item.value;
     }
     throw new Error(`Item ${stringKey} was not of type node: ${JSON.stringify(item)}`);
+  }
+
+  public getItemAsPair(stringKey: string): NodePair {
+    const item = this.getValueByStringKey(stringKey);
+    if (item instanceof NodePair) {
+      return item;
+    }
+    throw new Error(`Item ${stringKey} was not of type NodePair: ${JSON.stringify(item)}`);
   }
 
   private getValueByStringKey(stringKey: string): Node {

@@ -191,13 +191,20 @@ export class CloudformationYaml implements vscode.Disposable {
     }
 
     // If this is a map, we just need to go deeper.
-    if (node.type === NodeTypes.MAP && node.items) {
+    if (node.type === NodeTypes.MAP) {
       const traversalPromises = node.items.map((item) => {
         item.tag = !item.tag ? node.tag : item.tag;
         return this.traverse(item, fullText, filePath, documentUri, false, recurseSubStacks);
       });
       const traversals = await Promise.all(traversalPromises);
       resultantTraversal = NodeTraversal.flatten([resultantTraversal, ...traversals]);
+    }
+
+    // Same with Pairs
+    if (node.type === NodeTypes.PAIR) {
+      const nodePair = node as NodePair;
+      const traversal = await this.traverse(nodePair.value, fullText, filePath, documentUri, false, recurseSubStacks);
+      resultantTraversal = NodeTraversal.flatten([resultantTraversal, traversal]);
     }
 
     // If it's an array, there are some edge cases to handle
@@ -285,10 +292,10 @@ export class CloudformationYaml implements vscode.Disposable {
         }
       } catch (error) {
         // This error was almost certainly because the file couldn't be read or does not exist.
-        const templateUrlNodePair = properties.getItemAsString('TemplateURL');
-        const templateUrlNodeValue = templateUrlNodePair.value as Node;
-        const templateUrl = templateUrlNodeValue.value as string;
-        const position = getRowColumnPosition(fullText, templateUrlNodeValue.range[0]);
+        // const templateUrlNodePair = properties.getItemAsPair('TemplateURL');
+        const templateUrlNode = properties.getItemAsNode('TemplateURL');
+        const templateUrl = properties.getItemAsString('TemplateURL');
+        const position = getRowColumnPosition(fullText, templateUrlNode.range[0]);
         const diagnostic = createDiagnostic(
           position,
           templateUrl.length,
