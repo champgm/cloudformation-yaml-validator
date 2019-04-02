@@ -2,7 +2,7 @@
   "name": "cloudformation-yaml-validator",
   "displayName": "cloudformation-yaml-validator",
   "description": "A reference validator for AWS CloudFormation YAML files",
-  "version": "0.3.2",
+  "version": "0.3.10",
   "engines": {
     "vscode": "^1.32.0"
   },
@@ -45,15 +45,13 @@
     ]
   },
   "scripts": {
-    "clean": "rimraf out/ && rimraf coverage/",
-    "vscode:prepublish": "npm run compile",
-    "compile": "npm run clean && npm run build",
-    "build": "tsc -p ./",
-    "watch": "npm run clean && tsc -watch -p ./",
     "postinstall": "node ./node_modules/vscode/bin/install",
-    "test": "npm run lint && npm run compile && node ./node_modules/vscode/bin/test",
-    "test-dirty": "npm run build && node ./node_modules/vscode/bin/test",
+    "clean": "rimraf out/ && rimraf coverage/",
+    "build": "npm run clean && tsc -p ./",
+    "watch": "npm run clean && tsc -watch -p ./",
     "lint": "tslint src/**/*.ts --fix",
+    "test": "npm run build && npm run lint && node ./node_modules/vscode/bin/test",
+    "vscode:prepublish": "npm run test",
     "publish-major": "vsce publish major",
     "publish-minor": "vsce publish minor",
     "publish-patch": "vsce publish patch"

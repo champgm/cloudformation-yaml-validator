@@ -6,6 +6,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.3.3] - [0.3.10]
+### Changed
+ - A bunch of thrashing trying to clean up build steps and find/fix an issue where the extension's commands aren't showing up when it is installed through the marketplace
+
+## [0.3.2]
+### Changed
+ - Refactoring/Cleanup and better integration tests
+
+## [0.3.1]
+### Changed
+ - Fixed the auto-start trigger when a file is opened
+
 ## [0.3.0]
 ### Added
  - GH-20: Added a command to recursively search through sub stacks
