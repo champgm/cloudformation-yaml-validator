@@ -2,7 +2,7 @@
   "name": "cloudformation-yaml-validator",
   "displayName": "cloudformation-yaml-validator",
   "description": "A reference validator for AWS CloudFormation YAML files",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "engines": {
     "vscode": "^1.32.0"
   },
