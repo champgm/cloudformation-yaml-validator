@@ -138,10 +138,6 @@ export class CloudformationYaml implements vscode.Disposable {
 
     if (isRootNode) {
       resultantTraversal.localDefinitions = [
-        // ...node.getItemByStringKey('Parameters').getValueIfPair().getKeys(),
-        // ...node.getItemByStringKey('Conditions').getValueIfPair().getKeys(),
-        // ...node.getItemByStringKey('Mappings').getValueIfPair().getKeys(),
-        // ...node.getItemByStringKey('Resources').getValueIfPair().getKeys(),
         ...node.getItemAsNode('Parameters').getKeys(),
         ...node.getItemAsNode('Conditions').getKeys(),
         ...node.getItemAsNode('Mappings').getKeys(),
@@ -150,7 +146,8 @@ export class CloudformationYaml implements vscode.Disposable {
     }
 
     // If this node is a sub stack, collect info about it
-    if (node.getItemAsString('Type') === 'AWS::CloudFormation::Stack') {
+    const typeField = node.getItemAsString('Type');
+    if (typeField === 'AWS::CloudFormation::Stack') {
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const newReferenceables = await this.getSubStackReferenceables(fullText, documentUri, node, parentPath, recurseSubStacks);
       resultantTraversal.subStackDefinitions = SubStack.flattenDefinitions([resultantTraversal.subStackDefinitions, newReferenceables]);
