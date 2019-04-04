@@ -8,7 +8,7 @@ import { createDiagnostic, createDiagnosticsFromSubStackNode, createDiagnosticsF
 import { getYamlNodeKeys, getNodeValueIfPair, getNodeItemByStringKey, EmptyNode } from './Yaml';
 import { Node } from './Yaml/Node';
 import { NodeTypes } from './Yaml/NodeTypes';
-import { revealAllProperties } from './common';
+import { revealAllProperties, hasValue } from './common';
 import { getRowColumnPosition } from './common/RowColumnPosition';
 import { References } from './Yaml/References';
 import { NodeTraversal } from './Yaml/NodeTraversal';
@@ -84,6 +84,9 @@ export class CloudformationYaml implements vscode.Disposable {
       const filePath = editor.document.fileName;
       await this.checkYaml(fullText, documentUri, filePath, document, recurse, isRoot);
     }
+    if (recurse && isRoot) {
+      vscode.window.showInformationMessage('Done recursing through sub stack YAMLs');
+    }
   }
 
   public async checkYaml(
@@ -110,9 +113,6 @@ export class CloudformationYaml implements vscode.Disposable {
       this.urisCurrentlyBeingProcessed.splice(this.urisCurrentlyBeingProcessed.indexOf(documentUri), 1);
     }
 
-    if (recurse && isRoot) {
-      vscode.window.showInformationMessage('Done recursing through sub stack YAMLs');
-    }
     return documentUri
       ? this.diagnosticCollection.get(documentUri) || []
       : [];
@@ -260,7 +260,7 @@ export class CloudformationYaml implements vscode.Disposable {
               const defaultValue = item.value.get('Default');
               referenceableParameters[templateUrl].push({
                 parameterName: item.stringKey as string,
-                hasDefault: !!defaultValue,
+                hasDefault: hasValue(defaultValue),
               });
             }
           });
