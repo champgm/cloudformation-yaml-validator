@@ -13,8 +13,6 @@
       "args": [
         "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}",
-        // "C:\\Users\\mismatch\\github\\project-quest\\services\\connectors"
-        // "/Volumes/github/project-quest-3/services/connectors"
         "${workspaceFolder}/test/resources"
       ],
       "outFiles": [

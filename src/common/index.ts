@@ -23,3 +23,9 @@ export function flattenArray(input: any[][]): any[] {
   const empty: any[] = [];
   return empty.concat.apply([], input);
 }
+
+export function hasValue(value: any) {
+  const booleanValue = !!value;
+  if (booleanValue) return booleanValue;
+  return (value === 0 || value === '');
+}
