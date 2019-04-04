@@ -270,7 +270,7 @@ export class CloudformationYaml implements vscode.Disposable {
           // Gather information necessary to check the file
           const uriString = `file://${filePath}`;
           const documentUri = vscode.Uri.parse(uriString);
-          const diagnostics = await this.checkYaml(fileText, documentUri, filePath, document, recurse, false);
+          const diagnostics = await this.checkYaml(fileText, documentUri, filePath, document, recurse, true);
           // If diagnostics for that file were generated, open it.
           if (diagnostics.length > 0) {
             const textDocument = await vscode.workspace.openTextDocument(filePath);

@@ -103,6 +103,55 @@ describe('Extension Integration Tests', () => {
       });
       assert.deepEqual(0, diagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${JSON.stringify(remainingDiagnostics, null, 2)}`);
     });
+    it('Recursively finds diagnostics given invalid yaml files', async () => {
+      const uri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/test.yml`));
+      const substackUri = vscode.Uri.file(path.join(`${__dirname}/${backToProjectDirectory}/test/resources/invalid_yaml/subfolder/test_substack.yml`));
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      await cloudformationYaml.checkActiveFile(true, true);
+
+      const expectedRootMessages = [
+        'Properties missing value for parameter with default value, \'FourthParameter\'',
+        'Properties missing value for required parameter, \'FifthParameter\'',
+        'Referenced file does not have parameter, \'SecondParameter\'',
+        'Unable to find referenced condition, \'FirstConditional\'',
+        'Unable to find referenced map, \'FirstMap\'',
+        'Unable to find referenced resource, \'NonexistentSubstack\'',
+        'Unable to find referenced sub stack output, \'FirstSubStack.Outputs.SecondOutput\'',
+        'Unable to find referenced value, \'FirstParameter\'',
+        'Unable to find referenced value, \'FourthParameter\'',
+        'Unable to find referenced value, \'NonexistentSubstack\'',
+        'Unable to find referenced value, \'RefInJoin\'',
+        'Unable to find referenced value, \'RefStack\'',
+        'Unable to find referenced value, \'SecondParameter\'',
+        'Unable to find referenced value, \'SingleQuoteStack\'',
+        'Unable to find referenced value, \'SubInJoin\'',
+        'Unable to load or parse template file',
+      ];
+      const expectedSubStackMessages = [
+        'Unable to find referenced value, \'SecondParameter\'',
+        'Unable to find referenced value, \'SixthParameter\'',
+      ];
+
+      const rootDiagnostics = vscode.languages.getDiagnostics(uri);
+      const subStackDiagnostics = vscode.languages.getDiagnostics(substackUri);
+
+      expectedRootMessages.forEach((message) => {
+        findAndRemoveDiagnosticByMessage(message, rootDiagnostics);
+      });
+      expectedSubStackMessages.forEach((message) => {
+        findAndRemoveDiagnosticByMessage(message, subStackDiagnostics);
+      });
+
+      const remainingDiagnostics = [
+        ...rootDiagnostics,
+        ...subStackDiagnostics,
+      ]
+        .map((diagnostic) => {
+          return diagnostic.message;
+        });
+      assert.deepEqual(0, remainingDiagnostics.length, `There should be no remaining diagnostics. Remaining diagnostics: ${JSON.stringify(remainingDiagnostics, null, 2)}`);
+    });
   });
 });
 

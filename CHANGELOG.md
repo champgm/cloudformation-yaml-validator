@@ -6,6 +6,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.3.13] - [0.3.14]
+### Changed
+ - GH-34: Fixed an issue where the recursive command generated a bunch of false positives and opened EVERY sub stack file
+
+## [0.3.11] - [0.3.12]
+### Changed
+ - GH-31: Fixed a dependency issue which broke manually running commands
+
 ## [0.3.3] - [0.3.10]
 ### Changed
  - A bunch of thrashing trying to clean up build steps and find/fix an issue where the extension's commands aren't showing up when it is installed through the marketplace
