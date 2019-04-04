@@ -1,6 +1,6 @@
 # Cloudformation YAML Validator
 
-[![Version](https://vsmarketplacebadge.apphb.com/version/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator) [![Installs](https://vsmarketplacebadge.apphb.com/installs/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validato) [![Travis](https://img.shields.io/travis/champgm/cloudformation-yaml-validator/master.svg)](https://travis-ci.org/champgm/cloudformation-yaml-validator)
+[![Version](https://vsmarketplacebadge.apphb.com/version/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator) [![Installs](https://vsmarketplacebadge.apphb.com/installs/champgm.cloudformation-yaml-validator.svg)](https://marketplace.visualstudio.com/items?itemName=champgm.cloudformation-yaml-validator) [![Travis](https://img.shields.io/travis/champgm/cloudformation-yaml-validator/master.svg)](https://travis-ci.org/champgm/cloudformation-yaml-validator)
 
 ## Features
 
