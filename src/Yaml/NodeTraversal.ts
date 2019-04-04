@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { Node } from './Node';
 import { SubStack } from '../common/SubStack';
-import { cloneDeep } from 'lodash';
+import clone from 'lodash.clonedeep';
 
 export interface NodeTraversal {
   fullText: string;
@@ -20,7 +20,7 @@ export namespace NodeTraversal {
     documentUri: undefined as any,
   };
   export function flatten(nodeTraversal: NodeTraversal[]) {
-    const flattenedTraversal = cloneDeep(NodeTraversal.EMPTY_TRAVERSAL);
+    const flattenedTraversal = clone(NodeTraversal.EMPTY_TRAVERSAL);
     nodeTraversal.forEach((nodeTraversal) => {
       flattenedTraversal.localReferenceables = [
         ...flattenedTraversal.localReferenceables,
