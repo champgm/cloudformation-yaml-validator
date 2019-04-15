@@ -1,10 +1,5 @@
 import { Position } from 'vscode';
 
-// export interface RowColumnPosition {
-//   line: number;
-//   column: number;
-// }
-
 export function getRowColumnPosition(text: string, absolutePosition: number): Position {
   // YAML library doesn't have a line + column position, only absolute
   // So we have to count the lines.

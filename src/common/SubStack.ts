@@ -1,4 +1,3 @@
-import { Location,  Uri } from 'vscode';
 import { Definition, Definitions } from './Definition';
 
 export namespace SubStack {
@@ -21,10 +20,10 @@ export namespace SubStack {
       parameters: {},
     };
     allReferenceables.forEach((referenceable) => {
-      resultantReferenceables.outputs = [
+      resultantReferenceables.outputs = new Definitions(
         ...resultantReferenceables.outputs,
         ...referenceable.outputs,
-      ];
+      );
       resultantReferenceables.parameters = SubStack.flattenParameterReferenceablesMapsMaps([
         resultantReferenceables.parameters,
         referenceable.parameters,

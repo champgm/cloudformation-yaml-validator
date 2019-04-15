@@ -13,6 +13,7 @@ import { getRowColumnPosition } from './common/RowColumnPosition';
 import { References } from './Yaml/References';
 import { NodeTraversal } from './Yaml/NodeTraversal';
 import { SubStack } from './common/SubStack';
+import { Definitions } from './common/Definition';
 
 export const diagnosticCollectionName = 'CloudFormation Yaml Validator';
 
@@ -136,12 +137,12 @@ export class CloudformationYaml implements vscode.Disposable {
     }
 
     if (isRootNode) {
-      resultantTraversal.localDefinitions = [
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings'))),
-        ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources'))),
-      ];
+      resultantTraversal.localDefinitions = new Definitions(
+        ...getYamlNodeKeys(documentUri, getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters')), fullText),
+        ...getYamlNodeKeys(documentUri, getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions')), fullText),
+        ...getYamlNodeKeys(documentUri, getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings')), fullText),
+        ...getYamlNodeKeys(documentUri, getNodeValueIfPair(getNodeItemByStringKey(node, 'Resources')), fullText),
+      );
     }
 
     // If this node is a sub stack, collect info about it
@@ -233,7 +234,7 @@ export class CloudformationYaml implements vscode.Disposable {
     subStackNode: Node,
     parentPath: string,
     recurse: boolean,
-  ): Promise<SubStack.Substack.Definitions> {
+  ): Promise<SubStack.SubStackDefinitions> {
     const referenceableOutputs: string[] = [];
     const referenceableParameters: SubStack.ParameterDefinitionMap = {};
     const properties = subStackNode.get('Properties') as Node;

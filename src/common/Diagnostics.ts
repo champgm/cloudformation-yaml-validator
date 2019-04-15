@@ -35,16 +35,15 @@ export function createDiagnosticsFromReferencingNode(
   // If the node has explicit references listed, check those references and create diagnostics as necessary
   node.references.forEach((reference) => {
     // This might reference a stack output. If so, save that tidbit for later.
-    const referencesAnOutput = reference.referencedKey.indexOf('.Outputs') > -1;
+    const referencesAnOutput = reference.name.indexOf('.Outputs') > -1;
 
     // This might be a reference to a resource's native attribute.
     if (!referencesAnOutput) {
-      const keyPieces = reference.referencedKey.split('.');
+      const keyPieces = reference.name.split('.');
       if (keyPieces.length > 1) {
         // If that's the case, just check to make sure the resource exists.
         const referencedResource = keyPieces[0];
-        // if (traversal.localDefinitions.indexOf(referencedResource) < 0) {
-        if (traversal.localDefinitions.find(definition => definition.name === referencedResource)) {
+        if (traversal.localDefinitions.contains(referencedResource)) {
           const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
           const position = getRowColumnPosition(traversal.fullText, reference.absolutePosition);
           const diagnostic = createDiagnostic(position, referencedResource.length, vscode.DiagnosticSeverity.Error, message);
@@ -57,22 +56,21 @@ export function createDiagnosticsFromReferencingNode(
     // If it's a !GetAtt reference
     if (reference.type === ReferenceTypes.GET_ATT) {
       // Check sub stack outputs if it's an outputs reference
-      const noMatchingSubStackOutput = traversal.subStackDefinitions.outputs.find(definition => definition.name === reference.referencedKey);
-      // const noMatchingSubStackOutput = traversal.subStackDefinitions.outputs.indexOf(reference.referencedKey) < 0;
+      const noMatchingSubStackOutput = !traversal.subStackDefinitions.outputs.contains(reference.name);
       if (referencesAnOutput && noMatchingSubStackOutput) {
-        const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
+        const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.name);
         const position = getRowColumnPosition(traversal.fullText, reference.absolutePosition);
-        const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
+        const diagnostic = createDiagnostic(position, reference.name.length, vscode.DiagnosticSeverity.Error, message);
         addDiagnostic(traversal.documentUri, diagnostic, diagnosticCollection);
       }
       return;
     }
 
     // Otherwise, check local referenceables, this encompasses all !Ref, !Sub, !FindInMap, and !If types
-    if (traversal.localDefinitions.indexOf(reference.referencedKey) < 0) {
-      const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
-      const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
-      const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
+    if (traversal.localDefinitions.contains(reference.name)) {
+      const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.name);
+      const position = getRowColumnPosition(traversal.fullText, reference.absolutePosition);
+      const diagnostic = createDiagnostic(position, reference.name.length, vscode.DiagnosticSeverity.Error, message);
       addDiagnostic(traversal.documentUri, diagnostic, diagnosticCollection);
     }
   });

@@ -2,13 +2,16 @@ import get from 'lodash.get';
 
 import { Node } from './Node';
 import { NodeTypes } from './NodeTypes';
-import { Definitions } from '../common/Definition';
+import { Definitions, Definition } from '../common/Definition';
+import { Range, Uri } from 'vscode';
+import { getRowColumnPosition } from '../common/RowColumnPosition';
+import { References } from '../common/Reference';
 
 export class EmptyNode {
   public static readonly EMPTY_NODE: Node = {
     type: NodeTypes.EMPTY,
     items: [],
-    references: [],
+    references: new References(),
     range: [0, 0],
     tag: '',
     get: () => { return EmptyNode.EMPTY_NODE; },
@@ -19,12 +22,20 @@ export class EmptyNode {
   };
 }
 
-export function getYamlNodeKeys(yamlNode: any): Definitions {
+export function getYamlNodeKeys(uri: Uri, yamlNode: Node, fullText: string): Definitions {
   if (yamlNode && yamlNode.items) {
-    return yamlNode.items.map((itemNode) => {
-      
-      return itemNode.stringKey;
-    });
+    const definitions = yamlNode.items.filter(itemNode => !!itemNode.stringKey)
+      .map((itemNode) => {
+        return new Definition(
+          uri,
+          itemNode.stringKey as string,
+          new Range(
+            getRowColumnPosition(fullText, itemNode.range[0]),
+            getRowColumnPosition(fullText, itemNode.range[1]),
+          ),
+        );
+      });
+    return new Definitions(...definitions);
   }
   return new Definitions();
 }
