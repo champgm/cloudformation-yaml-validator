@@ -136,7 +136,7 @@ export class CloudformationYaml implements vscode.Disposable {
     }
 
     if (isRootNode) {
-      resultantTraversal.localReferenceables = [
+      resultantTraversal.localDefinitions = [
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Parameters'))),
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Conditions'))),
         ...getYamlNodeKeys(getNodeValueIfPair(getNodeItemByStringKey(node, 'Mappings'))),
@@ -148,7 +148,7 @@ export class CloudformationYaml implements vscode.Disposable {
     if (node.get && node.get('Type') === 'AWS::CloudFormation::Stack') {
       const parentPath = `${filePath.substring(0, filePath.lastIndexOf(path.sep))}`;
       const newReferenceables = await this.getSubStackReferenceables(fullText, documentUri, node, parentPath, recurseSubStacks);
-      resultantTraversal.subStackReferenceables = SubStack.flattenReferenceables([resultantTraversal.subStackReferenceables, newReferenceables]);
+      resultantTraversal.subStackDefinitions = SubStack.flattenReferenceables([resultantTraversal.subStackDefinitions, newReferenceables]);
       resultantTraversal.nodesWhichReference.push(node);
     }
 
@@ -233,9 +233,9 @@ export class CloudformationYaml implements vscode.Disposable {
     subStackNode: Node,
     parentPath: string,
     recurse: boolean,
-  ): Promise<SubStack.Referenceables> {
+  ): Promise<SubStack.Substack.Definitions> {
     const referenceableOutputs: string[] = [];
-    const referenceableParameters: SubStack.ParameterReferenceablesMap = {};
+    const referenceableParameters: SubStack.ParameterDefinitionMap = {};
     const properties = subStackNode.get('Properties') as Node;
     const templateUrl = (properties as Node).get('TemplateURL');
     if (typeof templateUrl === 'string') {
@@ -259,7 +259,7 @@ export class CloudformationYaml implements vscode.Disposable {
             if (item.type === NodeTypes.PAIR && item.value && !(typeof item.value === 'string')) {
               const defaultValue = item.value.get('Default');
               referenceableParameters[templateUrl].push({
-                parameterName: item.stringKey as string,
+                name: item.stringKey as string,
                 hasDefault: hasValue(defaultValue),
               });
             }

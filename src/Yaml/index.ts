@@ -2,6 +2,7 @@ import get from 'lodash.get';
 
 import { Node } from './Node';
 import { NodeTypes } from './NodeTypes';
+import { Definitions } from '../common/Definition';
 
 export class EmptyNode {
   public static readonly EMPTY_NODE: Node = {
@@ -18,13 +19,14 @@ export class EmptyNode {
   };
 }
 
-export function getYamlNodeKeys(yamlNode: any): string[] {
+export function getYamlNodeKeys(yamlNode: any): Definitions {
   if (yamlNode && yamlNode.items) {
     return yamlNode.items.map((itemNode) => {
+      
       return itemNode.stringKey;
     });
   }
-  return [];
+  return new Definitions();
 }
 
 export function getNodeValueIfPair(node: Node): Node {

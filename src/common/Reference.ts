@@ -1,7 +1,8 @@
 import { ReferenceTypes } from './ReferenceTypes';
+import { Location } from 'vscode';
 
-export interface Reference {
+export interface Reference extends Location {
   type: ReferenceTypes;
-  absoluteKeyPosition: number;
+  absolutePosition: number;
   referencedKey: string;
 }

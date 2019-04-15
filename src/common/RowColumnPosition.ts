@@ -1,9 +1,11 @@
-export interface RowColumnPosition {
-  line: number;
-  column: number;
-}
+import { Position } from 'vscode';
 
-export function getRowColumnPosition(text: string, absolutePosition: number): RowColumnPosition {
+// export interface RowColumnPosition {
+//   line: number;
+//   column: number;
+// }
+
+export function getRowColumnPosition(text: string, absolutePosition: number): Position {
   // YAML library doesn't have a line + column position, only absolute
   // So we have to count the lines.
   const textBefore = text.substring(0, absolutePosition);
@@ -26,6 +28,6 @@ export function getRowColumnPosition(text: string, absolutePosition: number): Ro
   const afterLastLineReturn = lastLineReturn.index + lastLineReturn[0].length;
 
   // So, absolutePosition - afterLastLineReturn should give us the column number for our absolute position
-  const column = absolutePosition - afterLastLineReturn;
-  return { column, line };
+  const character = absolutePosition - afterLastLineReturn;
+  return new Position(line, character);
 }

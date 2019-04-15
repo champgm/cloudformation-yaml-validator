@@ -1,24 +1,24 @@
-import vscode from 'vscode';
+import vscode, { Position } from 'vscode';
 import clone from 'lodash.clonedeep';
 
-import { RowColumnPosition, getRowColumnPosition } from './RowColumnPosition';
+import { getRowColumnPosition } from './RowColumnPosition';
 import { getNodeValueIfPair, getNodeItemByStringKey } from '../Yaml';
 import { Node } from '../Yaml/Node';
 import { NodeTraversal } from '../Yaml/NodeTraversal';
 import { ReferenceTypes } from './ReferenceTypes';
 import { Maps } from './Maps';
 
-export function createDiagnostic(position: RowColumnPosition, length: number, severity: vscode.DiagnosticSeverity, message: string) {
+export function createDiagnostic(position: Position, length: number, severity: vscode.DiagnosticSeverity, message: string) {
   const range = createVsCodeRange(position, length);
   return new vscode.Diagnostic(range, message, severity);
 }
 
-export function createVsCodeRange(rowColumnPosition: RowColumnPosition, length: number): vscode.Range {
+export function createVsCodeRange(position: Position, length: number): vscode.Range {
   return new vscode.Range(
-    rowColumnPosition.line,
-    rowColumnPosition.column,
-    rowColumnPosition.line,
-    rowColumnPosition.column + length,
+    position.line,
+    position.character,
+    position.line,
+    position.character + length,
   );
 }
 
@@ -43,9 +43,10 @@ export function createDiagnosticsFromReferencingNode(
       if (keyPieces.length > 1) {
         // If that's the case, just check to make sure the resource exists.
         const referencedResource = keyPieces[0];
-        if (traversal.localReferenceables.indexOf(referencedResource) < 0) {
+        // if (traversal.localDefinitions.indexOf(referencedResource) < 0) {
+        if (traversal.localDefinitions.find(definition => definition.name === referencedResource)) {
           const message = Maps.referenceTypeToDiagnosticMessage[ReferenceTypes.REF](referencedResource);
-          const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
+          const position = getRowColumnPosition(traversal.fullText, reference.absolutePosition);
           const diagnostic = createDiagnostic(position, referencedResource.length, vscode.DiagnosticSeverity.Error, message);
           addDiagnostic(traversal.documentUri, diagnostic, diagnosticCollection);
         }
@@ -56,10 +57,11 @@ export function createDiagnosticsFromReferencingNode(
     // If it's a !GetAtt reference
     if (reference.type === ReferenceTypes.GET_ATT) {
       // Check sub stack outputs if it's an outputs reference
-      const noMatchingSubStackOutput = traversal.subStackReferenceables.outputs.indexOf(reference.referencedKey) < 0;
+      const noMatchingSubStackOutput = traversal.subStackDefinitions.outputs.find(definition => definition.name === reference.referencedKey);
+      // const noMatchingSubStackOutput = traversal.subStackDefinitions.outputs.indexOf(reference.referencedKey) < 0;
       if (referencesAnOutput && noMatchingSubStackOutput) {
         const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
-        const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
+        const position = getRowColumnPosition(traversal.fullText, reference.absolutePosition);
         const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
         addDiagnostic(traversal.documentUri, diagnostic, diagnosticCollection);
       }
@@ -67,7 +69,7 @@ export function createDiagnosticsFromReferencingNode(
     }
 
     // Otherwise, check local referenceables, this encompasses all !Ref, !Sub, !FindInMap, and !If types
-    if (traversal.localReferenceables.indexOf(reference.referencedKey) < 0) {
+    if (traversal.localDefinitions.indexOf(reference.referencedKey) < 0) {
       const message = Maps.referenceTypeToDiagnosticMessage[reference.type](reference.referencedKey);
       const position = getRowColumnPosition(traversal.fullText, reference.absoluteKeyPosition);
       const diagnostic = createDiagnostic(position, reference.referencedKey.length, vscode.DiagnosticSeverity.Error, message);
@@ -88,12 +90,12 @@ export function createDiagnosticsFromSubStackNode(
     // Get the parameters used and the referenceable parameters (make a clone, we wil edit this list)
     const parameters = getNodeValueIfPair(getNodeItemByStringKey(properties, 'Parameters'));
 
-    const referenceableParameters = clone(traversal.subStackReferenceables.parameters[templateUrl]) || [];
+    const referenceableParameters = clone(traversal.subStackDefinitions.parameters[templateUrl]) || [];
 
     // Iterate over each of the current file's parameter references and create diagnostics if necessary
     parameters.items.forEach((parameterPair) => {
       const matchingParameter = referenceableParameters.find((referenceableParameter) => {
-        return parameterPair.stringKey === referenceableParameter.parameterName;
+        return parameterPair.stringKey === referenceableParameter.name;
       });
       if (matchingParameter) {
         // If there's a matching parameter in the file, awesome, take it out of the list so we can inspect remainders
@@ -121,8 +123,8 @@ export function createDiagnosticsFromSubStackNode(
       const propertiesPosition = getRowColumnPosition(traversal.fullText, propertiesPair.key.range[0]);
       referenceableParameters.forEach((referenceableParameter) => {
         const message = referenceableParameter.hasDefault
-          ? `Properties missing value for parameter with default value, '${referenceableParameter.parameterName}'`
-          : `Properties missing value for required parameter, '${referenceableParameter.parameterName}'`;
+          ? `Properties missing value for parameter with default value, '${referenceableParameter.name}'`
+          : `Properties missing value for required parameter, '${referenceableParameter.name}'`;
         const severity = referenceableParameter.hasDefault
           ? vscode.DiagnosticSeverity.Warning
           : vscode.DiagnosticSeverity.Error;

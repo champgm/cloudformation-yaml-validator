@@ -1,5 +1,4 @@
 import clone from 'lodash.clonedeep';
-import { RowColumnPosition } from './RowColumnPosition';
 
 export function revealAllProperties(object: any): any {
   const objectReferences: any[] = [];

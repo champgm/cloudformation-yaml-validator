@@ -1,21 +1,23 @@
+import { Location,  Uri } from 'vscode';
+import { Definition, Definitions } from './Definition';
+
 export namespace SubStack {
-  export interface ParameterReferenceable {
-    parameterName: string;
+  export interface ParameterDefinition extends Definition {
     hasDefault: boolean;
   }
 
-  export interface ParameterReferenceablesMap {
-    [templateUrl: string]: ParameterReferenceable[];
+  export interface ParameterDefinitionMap {
+    [uriString: string]: ParameterDefinition[];
   }
 
-  export interface Referenceables {
-    outputs: string[];
-    parameters: ParameterReferenceablesMap;
+  export interface SubStackDefinitions {
+    outputs: Definitions;
+    parameters: ParameterDefinitionMap;
   }
 
-  export function flattenReferenceables(allReferenceables: Referenceables[]): Referenceables {
-    const resultantReferenceables: Referenceables = {
-      outputs: [],
+  export function flattenReferenceables(allReferenceables: SubStackDefinitions[]): SubStackDefinitions {
+    const resultantReferenceables: SubStackDefinitions = {
+      outputs: new Definitions(),
       parameters: {},
     };
     allReferenceables.forEach((referenceable) => {
@@ -31,7 +33,7 @@ export namespace SubStack {
     return resultantReferenceables;
   }
 
-  export function flattenParameterReferenceablesMapsMaps(allParameterReferenceablesMaps: ParameterReferenceablesMap[]): ParameterReferenceablesMap {
+  export function flattenParameterReferenceablesMapsMaps(allParameterReferenceablesMaps: ParameterDefinitionMap[]): ParameterDefinitionMap {
     const referenceablesMap = {};
     allParameterReferenceablesMaps.forEach((map) => {
       Object.keys(map).forEach((templateUrl) => {
